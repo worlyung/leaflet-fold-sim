@@ -1007,6 +1007,67 @@ input[type="range"] {
   margin-top: 0.35rem;
 }
 
+/* Imposition view */
+.imposition-host {
+  width: min(980px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 0.5rem 0.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.imposition-intro {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.imposition-sheet {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem 1rem;
+}
+
+.imposition-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.55rem;
+  color: #d7e0f0;
+}
+
+.imposition-face-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0.45rem 0 0.3rem;
+}
+
+.imposition-row {
+  display: flex;
+  box-shadow: var(--shadow);
+  border-radius: 2px;
+  overflow: hidden;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.imposition-row .spread-page + .spread-page {
+  border-left: 2px dashed rgba(240, 180, 41, 0.75);
+}
+
+section.section .row button {
+  flex: 1;
+}
+
+section.section input[type="text"] {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+}
+
 @media (max-width: 960px) {
   .app {
     grid-template-columns: 1fr;

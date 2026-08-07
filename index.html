@@ -26,7 +26,8 @@
             <button type="button" data-mode="fold" class="active" role="tab">접지 리플렛</button>
             <button type="button" data-mode="booklet" role="tab">책자 · 브로슈어</button>
           </div>
-          <span class="badge mvp">v1.1</span>
+          <button type="button" id="btnDemoImages" title="fixtures 샘플 이미지">데모 이미지</button>
+          <span class="badge mvp">v1.2</span>
           <span id="presetVer">presets</span>
         </div>
       </header>
@@ -78,6 +79,25 @@
           </section>
 
           <section class="section">
+            <h2>인쇄소 면폭 템플릿</h2>
+            <div class="field">
+              <label for="shopTemplateSelect">저장된 템플릿</label>
+              <select id="shopTemplateSelect">
+                <option value="">— 선택 —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="shopTemplateName">새 이름</label>
+              <input id="shopTemplateName" type="text" placeholder="예: OO인쇄 C접지" />
+            </div>
+            <div class="row">
+              <button type="button" id="btnSaveShopTpl">현재 δ 저장</button>
+              <button type="button" id="btnDelShopTpl">삭제</button>
+            </div>
+            <p class="hint">브라우저 localStorage에 저장됩니다.</p>
+          </section>
+
+          <section class="section">
             <h2>이미지 (접지)</h2>
             <div class="field">
               <label class="file-btn" id="frontFileLabel">
@@ -97,6 +117,20 @@
               <p class="hint">앞·뒤 전개 이미지를 패널 단위로 잘라 쓰거나, 패널만 따로 올릴 수 있습니다.</p>
             </div>
             <button type="button" id="clearImages">이미지 모두 지우기</button>
+            <div class="field" style="margin-top:0.55rem">
+              <label class="file-btn" id="foldPdfLabel">
+                PDF에서 앞·뒤 추출 (1·2쪽)
+                <input id="foldPdf" type="file" accept="application/pdf" />
+              </label>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>내보내기 (접지)</h2>
+            <div class="row">
+              <button type="button" id="btnExportFoldPng">전개도 PNG</button>
+              <button type="button" id="btnExportFoldPdf">전개도 PDF</button>
+            </div>
           </section>
         </div>
 
@@ -146,10 +180,26 @@
               <p class="hint">파일명 정렬 순서로 페이지에 배정됩니다. 부족하면 빈 페이지로 둡니다.</p>
             </div>
             <div class="field">
+              <label class="file-btn" id="bookletPdfLabel">
+                PDF 페이지 자동 분리
+                <input id="bookletPdf" type="file" accept="application/pdf" />
+              </label>
+              <p class="hint" id="pdfProgress"></p>
+            </div>
+            <div class="field">
               <label>페이지별</label>
               <div class="panel-uploads booklet-pages" id="bookletPageList"></div>
             </div>
             <button type="button" id="clearBookletImages">페이지 이미지 지우기</button>
+          </section>
+
+          <section class="section">
+            <h2>내보내기 (책자)</h2>
+            <div class="row">
+              <button type="button" id="btnExportImpPng">임포지션 PNG</button>
+              <button type="button" id="btnExportImpPdf">임포지션 PDF</button>
+            </div>
+            <p class="hint">중철 제본일 때 시트별 앞·뒤 배치를보냅니다.</p>
           </section>
         </div>
 
@@ -174,6 +224,7 @@
           <div id="toolbarBooklet" hidden>
             <button type="button" data-view="spread" class="active">스프레드</button>
             <button type="button" data-view="flipbook">플립북</button>
+            <button type="button" data-view="imposition">임포지션</button>
             <button type="button" data-view="thumbs">전체 페이지</button>
             <button type="button" data-view="book3d">3D 책</button>
           </div>
@@ -211,6 +262,9 @@
           <div class="stage" id="view-thumbs">
             <div id="thumbsHost" class="thumbs-grid"></div>
           </div>
+          <div class="stage" id="view-imposition">
+            <div id="impositionHost" class="imposition-host"></div>
+          </div>
           <div class="stage" id="view-book3d">
             <div class="stage-3d-inner" id="book3dInner">
               <div class="orbit-hint">드래그로 책 회전 · 하단으로 펼침 각도</div>
@@ -233,6 +287,7 @@
       </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script type="module">
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";

@@ -11,6 +11,24 @@ import {
   pageLabel,
 } from "./booklet.js";
 import { createPageCurlBook } from "./page-curl.js";
+import {
+  buildSaddleImposition,
+  formatSide,
+} from "./imposition.js";
+import {
+  listTemplates,
+  upsertTemplate,
+  deleteTemplate,
+  getTemplate,
+} from "./shop-templates.js";
+import {
+  renderFoldFlatCanvas,
+  renderImpositionCanvas,
+  renderImpositionSheetCanvases,
+  downloadCanvasPng,
+  downloadCanvasesPdf,
+} from "./export-flat.js";
+import { pdfToImages } from "./pdf-import.js";
 
 const state = {
   presets: null,
@@ -70,9 +88,69 @@ async function main() {
   rebuildBookletPageList();
   setProductMode(state.productMode, true);
   showBanner(
-    "접지 리플렛 · 책자/브로슈어 지원. 책자 플립북 넘김은 MengTo/sketchbook 곡선 페이지 기법을 참고했습니다.",
+    "접지 리플렛 · 책자/브로슈어 · 임포지션 · PDF · 내보내기 지원. «데모 이미지»로 fixtures 샘플을 불러올 수 있습니다.",
     false
   );
+}
+
+/** Load ./fixtures images for quick demo (page-1.jpg/png …) */
+async function loadDemoImages() {
+  const loadOne = (src) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(src));
+      img.src = src;
+    });
+  const load = async (base) => {
+    try {
+      return await loadOne(`${base}.jpg`);
+    } catch {
+      return loadOne(`${base}.png`);
+    }
+  };
+
+  try {
+    if (state.productMode === "fold") {
+      let front;
+      let back;
+      try {
+        front = await load("./fixtures/fold-front");
+        back = await load("./fixtures/fold-back");
+      } catch {
+        front = await load("./fixtures/page-1");
+        back = await load("./fixtures/page-2");
+      }
+      state.frontImage = front;
+      state.backImage = back;
+      $("#frontFileLabel").classList.add("has-file");
+      $("#frontFileLabel").textContent = "demo front";
+      $("#backFileLabel").classList.add("has-file");
+      $("#backFileLabel").textContent = "demo back";
+      showBanner("접지 데모 이미지 로드 (fixtures)", false);
+    } else {
+      const n = state.pageCount;
+      ensurePageArray();
+      let ok = 0;
+      for (let i = 0; i < n; i++) {
+        const num = (i % 12) + 1;
+        try {
+          state.pageImages[i] = await load(`./fixtures/page-${num}`);
+          ok++;
+        } catch {
+          state.pageImages[i] = null;
+        }
+      }
+      rebuildBookletPageList();
+      showBanner(`책자 데모 ${ok}/${n}페이지 fixtures 로드`, false);
+    }
+    renderAll();
+  } catch (err) {
+    showBanner(
+      `데모 이미지 실패 — node scripts/gen-fixtures.mjs 실행 후 다시 (${err.message})`,
+      true
+    );
+  }
 }
 
 function applyDefaults() {
@@ -308,6 +386,7 @@ function bindUI() {
   $$("#modeToggle [data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => setProductMode(btn.dataset.mode));
   });
+  $("#btnDemoImages")?.addEventListener("click", () => loadDemoImages());
 
   $("#sizeSelect").addEventListener("change", (e) => {
     state.sizeId = e.target.value;
@@ -346,6 +425,124 @@ function bindUI() {
     state.foldAmount = Number(e.target.value);
     $("#foldAmountOut").textContent = `${Math.round(state.foldAmount * 100)}%`;
     applyFoldAmountOnly();
+  });
+
+  // shop templates
+  refreshShopTemplateSelect();
+  $("#btnSaveShopTpl")?.addEventListener("click", () => {
+    const name =
+      $("#shopTemplateName")?.value?.trim() ||
+      `템플릿 δ${state.deltaMm}mm`;
+    upsertTemplate({
+      name,
+      deltaMm: state.deltaMm,
+      notes: "",
+      sizeId: state.sizeId,
+      foldId: state.foldId,
+    });
+    refreshShopTemplateSelect();
+    showBanner(`인쇄소 템플릿 저장: ${name} (δ=${state.deltaMm}mm)`, false);
+  });
+  $("#btnDelShopTpl")?.addEventListener("click", () => {
+    const id = $("#shopTemplateSelect")?.value;
+    if (!id) return;
+    deleteTemplate(id);
+    refreshShopTemplateSelect();
+    showBanner("템플릿 삭제됨", false);
+  });
+  $("#shopTemplateSelect")?.addEventListener("change", (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    const t = getTemplate(id);
+    if (!t) return;
+    state.deltaMm = t.deltaMm;
+    $("#deltaRange").value = t.deltaMm;
+    $("#deltaOut").textContent = `${t.deltaMm} mm`;
+    if (t.foldId) {
+      state.foldId = t.foldId;
+      $("#foldSelect").value = t.foldId;
+      updateDeltaVisibility();
+    }
+    if (t.sizeId && t.sizeId !== "custom") {
+      state.sizeId = t.sizeId;
+      $("#sizeSelect").value = t.sizeId;
+      updateCustomVisibility();
+    }
+    renderAll();
+    showBanner(`템플릿 적용: ${t.name}`, false);
+  });
+
+  // export fold
+  $("#btnExportFoldPng")?.addEventListener("click", () => exportFold("png"));
+  $("#btnExportFoldPdf")?.addEventListener("click", () => exportFold("pdf"));
+  $("#btnExportImpPng")?.addEventListener("click", () => exportImposition("png"));
+  $("#btnExportImpPdf")?.addEventListener("click", () => exportImposition("pdf"));
+
+  // PDF import
+  $("#foldPdf")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      showBanner("PDF 읽는 중…", false);
+      const imgs = await pdfToImages(file, { maxPages: 2, scale: 1.4 });
+      if (imgs[0]) {
+        state.frontImage = imgs[0];
+        $("#frontFileLabel").classList.add("has-file");
+        $("#frontFileLabel").textContent = "PDF p1";
+      }
+      if (imgs[1]) {
+        state.backImage = imgs[1];
+        $("#backFileLabel").classList.add("has-file");
+        $("#backFileLabel").textContent = "PDF p2";
+      }
+      $("#foldPdfLabel")?.classList.add("has-file");
+      showBanner(`PDF에서 ${imgs.length}쪽 추출 (앞·뒤)`, false);
+      renderAll();
+    } catch (err) {
+      showBanner(`PDF 실패: ${err.message}`, true);
+    }
+  });
+
+  $("#bookletPdf")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const prog = $("#pdfProgress");
+      if (prog) prog.textContent = "PDF 변환 중…";
+      showBanner("PDF 페이지 분리 중…", false);
+      const imgs = await pdfToImages(file, {
+        maxPages: 64,
+        scale: 1.35,
+        onProgress: (done, total) => {
+          if (prog) prog.textContent = `${done} / ${total} 쪽 변환…`;
+        },
+      });
+      // auto page count to fit (respect binding multiple)
+      let n = imgs.length;
+      if (state.bindingId === "saddle_stitch") {
+        n = normalizePageCount(Math.max(4, n), "saddle_stitch");
+      } else {
+        n = normalizePageCount(Math.max(2, n), state.bindingId);
+      }
+      // if PDF has fewer pages than normalized, keep normalized empties
+      if (imgs.length > n) n = normalizePageCount(imgs.length, state.bindingId);
+      state.pageCount = n;
+      refillPageCountSelect();
+      ensurePageArray();
+      for (let i = 0; i < state.pageCount; i++) {
+        state.pageImages[i] = imgs[i] || null;
+      }
+      rebuildBookletPageList();
+      $("#bookletPdfLabel")?.classList.add("has-file");
+      if (prog) prog.textContent = `${imgs.length}쪽 적용 (책 ${state.pageCount}p)`;
+      showBanner(`PDF ${imgs.length}쪽 → 책자 ${state.pageCount}p`, false);
+      state.spreadIndex = 0;
+      renderAll();
+    } catch (err) {
+      showBanner(`PDF 실패: ${err.message}`, true);
+      const prog = $("#pdfProgress");
+      if (prog) prog.textContent = err.message;
+    }
   });
 
   $$("[data-view]").forEach((btn) => {
@@ -591,9 +788,93 @@ function updateViewModeButtons() {
     });
   } else {
     $$("#toolbarBooklet [data-view]").forEach((btn) => {
-      btn.disabled = false;
-      btn.classList.toggle("active", state.viewMode === btn.dataset.view);
+      const v = btn.dataset.view;
+      let ok = true;
+      if (v === "imposition") ok = state.bindingId === "saddle_stitch";
+      btn.disabled = !ok;
+      btn.classList.toggle("active", state.viewMode === v);
     });
+    if (
+      state.viewMode === "imposition" &&
+      state.bindingId !== "saddle_stitch"
+    ) {
+      state.viewMode = "spread";
+    }
+  }
+}
+
+function refreshShopTemplateSelect() {
+  const sel = $("#shopTemplateSelect");
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">— 선택 —</option>`;
+  listTemplates().forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.name} (δ${t.deltaMm}mm)`;
+    sel.appendChild(opt);
+  });
+  if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function exportFold(kind) {
+  const data = getSheetAndPanels();
+  if (!data) return;
+  try {
+    const canvas = renderFoldFlatCanvas({
+      sheet: data.sheet,
+      panels: data.panels,
+      foldAxis: state.foldAxis,
+      frontImage: state.frontImage,
+      backImage: state.backImage,
+      panelImages: state.panelImages,
+      foldLabel: data.fold.label,
+      sizeLabel: data.size.labelDetail || data.size.label,
+    });
+    const base = `leaflet-flat-${data.size.id}-${data.fold.id}`;
+    if (kind === "png") {
+      downloadCanvasPng(canvas, `${base}.png`);
+      showBanner("전개도 PNG 저장", false);
+    } else {
+      downloadCanvasesPdf([canvas], `${base}.pdf`).then(() =>
+        showBanner("전개도 PDF 저장", false)
+      );
+    }
+  } catch (err) {
+    showBanner(`내보내기 실패: ${err.message}`, true);
+  }
+}
+
+function exportImposition(kind) {
+  if (state.bindingId !== "saddle_stitch") {
+    showBanner("임포지션 내보내기는 중철 제본에서만 가능합니다.", true);
+    return;
+  }
+  try {
+    const page = getBookletPageSize();
+    const imp = buildSaddleImposition(state.pageCount);
+    if (kind === "png") {
+      const canvas = renderImpositionCanvas({
+        pageSize: page,
+        imposition: imp,
+        pageImages: state.pageImages,
+        pageCount: state.pageCount,
+      });
+      downloadCanvasPng(canvas, `imposition-${state.pageCount}p.png`);
+      showBanner("임포지션 PNG 저장", false);
+    } else {
+      const canvases = renderImpositionSheetCanvases({
+        pageSize: page,
+        imposition: imp,
+        pageImages: state.pageImages,
+        pageCount: state.pageCount,
+      });
+      downloadCanvasesPdf(canvases, `imposition-${state.pageCount}p.pdf`).then(
+        () => showBanner("임포지션 PDF 저장 (시트별 페이지)", false)
+      );
+    }
+  } catch (err) {
+    showBanner(`임포지션 내보내기 실패: ${err.message}`, true);
   }
 }
 
@@ -926,6 +1207,7 @@ function renderBooklet() {
     spread: "view-spread",
     flipbook: "view-flipbook",
     thumbs: "view-thumbs",
+    imposition: "view-imposition",
     book3d: "view-book3d",
   };
   $(`#${map[state.viewMode] || "view-flipbook"}`)?.classList.add("active");
@@ -936,7 +1218,83 @@ function renderBooklet() {
   if (state.viewMode === "spread") renderBookletSpread();
   else if (state.viewMode === "flipbook") renderBookletFlipbook();
   else if (state.viewMode === "thumbs") renderBookletThumbs();
+  else if (state.viewMode === "imposition") renderImposition();
   else if (state.viewMode === "book3d") renderBooklet3d();
+}
+
+function renderImposition() {
+  const host = $("#impositionHost");
+  if (!host) return;
+  host.innerHTML = "";
+
+  if (state.bindingId !== "saddle_stitch") {
+    host.innerHTML =
+      `<p class="book-hint">임포지션 전개도는 <strong>중철 제본</strong>에서만 표시됩니다.</p>`;
+    return;
+  }
+
+  let imp;
+  try {
+    imp = buildSaddleImposition(state.pageCount);
+  } catch (err) {
+    host.innerHTML = `<p class="book-hint" style="color:#f07178">${err.message}</p>`;
+    return;
+  }
+
+  const page = getBookletPageSize();
+  const box = stageBox();
+  const openW = page.widthMm * 2;
+  const scale = mmToScale(openW, page.heightMm, box.w * 0.88, box.h * 0.28, 16);
+
+  const intro = document.createElement("div");
+  intro.className = "imposition-intro";
+  intro.innerHTML = `
+    <strong>중철 임포지션</strong> · ${state.pageCount}페이지 · 시트 ${imp.length}장
+    <span class="credit-note"> · 한 장 앞면/뒷면에 2페이지씩 · 가운데 접어 중철</span>
+  `;
+  host.appendChild(intro);
+
+  imp.forEach((sheet) => {
+    const block = document.createElement("div");
+    block.className = "imposition-sheet";
+
+    const title = document.createElement("div");
+    title.className = "imposition-title";
+    title.textContent = `${sheet.sheetLabel} — 앞 ${formatSide(sheet.front, state.pageCount)}  /  뒤 ${formatSide(sheet.back, state.pageCount)}`;
+    block.appendChild(title);
+
+    ["front", "back"].forEach((face) => {
+      const side = sheet[face];
+      const faceLab = document.createElement("div");
+      faceLab.className = "imposition-face-label";
+      faceLab.textContent = face === "front" ? "앞면 (인쇄면 A)" : "뒷면 (인쇄면 B)";
+      block.appendChild(faceLab);
+
+      const row = document.createElement("div");
+      row.className = "imposition-row";
+      [side.left, side.right].forEach((pi) => {
+        const cell = document.createElement("div");
+        cell.className =
+          "spread-page" + (state.pageImages[pi] ? "" : " empty");
+        cell.style.width = `${page.widthMm * scale}px`;
+        cell.style.height = `${page.heightMm * scale}px`;
+        if (state.pageImages[pi]) {
+          cell.style.backgroundImage = `url(${state.pageImages[pi].src})`;
+          cell.style.backgroundSize = "cover";
+          cell.style.backgroundPosition = "center";
+        } else {
+          cell.textContent = `${pi + 1}`;
+        }
+        cell.innerHTML += `<span class="pg-num">${pi + 1}p</span>`;
+        row.appendChild(cell);
+      });
+      // center crease mark
+      row.style.position = "relative";
+      block.appendChild(row);
+    });
+
+    host.appendChild(block);
+  });
 }
 
 function renderBookletSpread() {

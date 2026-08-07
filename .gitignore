@@ -1,6 +1,8 @@
 # local / temp
 .tmp-sketchbook/
 .tmp/
+# keep fixtures PNGs tracked for demo
+# fixtures/
 .DS_Store
 Thumbs.db
 desktop.ini
