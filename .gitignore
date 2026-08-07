@@ -1,0 +1,21 @@
+# local / temp
+.tmp-sketchbook/
+.tmp/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editors / OS
+.idea/
+.vscode/
+*.swp
+*.log
+
+# env / secrets
+.env
+.env.*
+
+# node (if any)
+node_modules/
+dist/
+.cache/

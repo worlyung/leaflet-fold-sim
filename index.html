@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>리플렛 · 책자 시뮬레이터</title>
+    <link rel="stylesheet" href="./css/app.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <h1>리플렛 · 책자 시뮬레이터</h1>
+          <span>접지 리플렛 + 다페이지 브로슈어 · 내부 확인용</span>
+        </div>
+        <div class="topbar-meta">
+          <div class="mode-toggle" id="modeToggle" role="tablist" aria-label="제품 유형">
+            <button type="button" data-mode="fold" class="active" role="tab">접지 리플렛</button>
+            <button type="button" data-mode="booklet" role="tab">책자 · 브로슈어</button>
+          </div>
+          <span class="badge mvp">v1.1</span>
+          <span id="presetVer">presets</span>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <!-- FOLD MODE -->
+        <div id="panelFold">
+          <section class="section">
+            <h2>용지 · 접지</h2>
+            <div class="field">
+              <label for="sizeSelect">용지 사이즈 (펼친)</label>
+              <select id="sizeSelect"></select>
+            </div>
+            <div class="row" id="customRow" hidden>
+              <div class="field">
+                <label for="customW">가로 mm</label>
+                <input id="customW" type="number" min="50" max="600" value="210" />
+              </div>
+              <div class="field">
+                <label for="customH">세로 mm</label>
+                <input id="customH" type="number" min="50" max="900" value="297" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="foldSelect">접지 방식</label>
+              <select id="foldSelect"></select>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="orientSelect">방향</label>
+                <select id="orientSelect">
+                  <option value="portrait">세로형</option>
+                  <option value="landscape">가로형</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="axisSelect">접는 축</label>
+                <select id="axisSelect">
+                  <option value="vertical">세로 접기 (좌우 패널)</option>
+                  <option value="horizontal">가로 접기 (상하 패널)</option>
+                </select>
+              </div>
+            </div>
+            <div class="field" id="deltaField">
+              <label for="deltaRange">안쪽 면 축소 (C·대문·롤)</label>
+              <input id="deltaRange" type="range" min="1" max="4" step="0.5" value="2" />
+              <div class="hint">출력 <span id="deltaOut">2 mm</span> · 인쇄소마다 다름</div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>이미지 (접지)</h2>
+            <div class="field">
+              <label class="file-btn" id="frontFileLabel">
+                앞면 이미지 선택
+                <input id="frontFile" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="field">
+              <label class="file-btn" id="backFileLabel">
+                뒷면 이미지 선택
+                <input id="backFile" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="field">
+              <label>패널별 덮어쓰기 (선택)</label>
+              <div class="panel-uploads" id="panelUploads"></div>
+              <p class="hint">앞·뒤 전개 이미지를 패널 단위로 잘라 쓰거나, 패널만 따로 올릴 수 있습니다.</p>
+            </div>
+            <button type="button" id="clearImages">이미지 모두 지우기</button>
+          </section>
+        </div>
+
+        <!-- BOOKLET MODE -->
+        <div id="panelBooklet" hidden>
+          <section class="section">
+            <h2>책자 사양</h2>
+            <div class="field">
+              <label for="bookletSizeSelect">한 페이지 크기 (완성)</label>
+              <select id="bookletSizeSelect"></select>
+            </div>
+            <div class="row" id="bookletCustomRow" hidden>
+              <div class="field">
+                <label for="bookletCustomW">가로 mm</label>
+                <input id="bookletCustomW" type="number" min="50" max="600" value="148" />
+              </div>
+              <div class="field">
+                <label for="bookletCustomH">세로 mm</label>
+                <input id="bookletCustomH" type="number" min="50" max="900" value="210" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="bindingSelect">제본 방식</label>
+              <select id="bindingSelect"></select>
+              <p class="hint" id="bindingNote"></p>
+            </div>
+            <div class="field">
+              <label for="pageCountSelect">페이지 수</label>
+              <select id="pageCountSelect"></select>
+            </div>
+            <div class="field">
+              <label for="bookletOrient">방향</label>
+              <select id="bookletOrient">
+                <option value="portrait">세로형</option>
+                <option value="landscape">가로형</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>페이지 이미지</h2>
+            <div class="field">
+              <label class="file-btn" id="bookletBulkLabel">
+                여러 장 한 번에 올리기 (순서대로 1→N)
+                <input id="bookletBulk" type="file" accept="image/*" multiple />
+              </label>
+              <p class="hint">파일명 정렬 순서로 페이지에 배정됩니다. 부족하면 빈 페이지로 둡니다.</p>
+            </div>
+            <div class="field">
+              <label>페이지별</label>
+              <div class="panel-uploads booklet-pages" id="bookletPageList"></div>
+            </div>
+            <button type="button" id="clearBookletImages">페이지 이미지 지우기</button>
+          </section>
+        </div>
+
+        <section class="section">
+          <h2 id="statsTitle">정보</h2>
+          <div class="stats" id="stats"></div>
+          <div class="panel-widths" id="widthChips"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div id="banner" class="banner" role="status"></div>
+        <div class="toolbar">
+          <span class="group-label">보기</span>
+          <div id="toolbarFold">
+            <button type="button" data-view="flat" class="active">전개도</button>
+            <button type="button" data-view="folded">접힌 상태</button>
+            <button type="button" data-view="flip">책 넘기기</button>
+            <button type="button" data-view="open">접힘 미리보기</button>
+            <button type="button" data-view="orbit3d">3D 회전</button>
+          </div>
+          <div id="toolbarBooklet" hidden>
+            <button type="button" data-view="spread" class="active">스프레드</button>
+            <button type="button" data-view="flipbook">플립북</button>
+            <button type="button" data-view="thumbs">전체 페이지</button>
+            <button type="button" data-view="book3d">3D 책</button>
+          </div>
+          <span class="spacer"></span>
+          <div class="side-toggle" id="sideToggle" title="접힌 상태 표지 면">
+            <button type="button" data-side="front" class="active">앞</button>
+            <button type="button" data-side="back">뒤</button>
+          </div>
+        </div>
+
+        <div class="stage-wrap">
+          <div class="stage active" id="view-flat">
+            <div id="flatHost"></div>
+          </div>
+          <div class="stage" id="view-folded">
+            <div id="foldedHost"></div>
+          </div>
+          <div class="stage" id="view-flip">
+            <div id="flipHost"></div>
+          </div>
+          <div class="stage" id="view-open">
+            <div id="openHost"></div>
+          </div>
+          <div class="stage" id="view-3d">
+            <div class="stage-3d-inner" id="view3dInner">
+              <div class="orbit-hint">드래그: 회전 · 스크롤: 줌 · 하단 슬라이더: 접힘</div>
+            </div>
+          </div>
+          <div class="stage" id="view-spread">
+            <div id="spreadHost"></div>
+          </div>
+          <div class="stage" id="view-flipbook">
+            <div id="flipbookHost"></div>
+          </div>
+          <div class="stage" id="view-thumbs">
+            <div id="thumbsHost" class="thumbs-grid"></div>
+          </div>
+          <div class="stage" id="view-book3d">
+            <div class="stage-3d-inner" id="book3dInner">
+              <div class="orbit-hint">드래그로 책 회전 · 하단으로 펼침 각도</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottombar">
+          <div class="control" id="foldAmountControl">
+            <label for="foldAmount">접힘</label>
+            <input id="foldAmount" type="range" min="0" max="1" step="0.01" value="0.65" />
+            <output id="foldAmountOut">65%</output>
+          </div>
+          <div class="control booklet-nav" id="bookletNav" hidden>
+            <button type="button" id="btnPrevSpread">← 이전</button>
+            <output id="spreadOut">1 / 1</output>
+            <button type="button" id="btnNextSpread">다음 →</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      window.THREE = THREE;
+      window.OrbitControls = OrbitControls;
+      import("./js/app.js").then(() => {
+        fetch("./presets.json")
+          .then((r) => r.json())
+          .then((p) => {
+            const el = document.getElementById("presetVer");
+            if (el) el.textContent = `presets v${p.version}`;
+          })
+          .catch(() => {});
+      });
+    </script>
+  </body>
+</html>

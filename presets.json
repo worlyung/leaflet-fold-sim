@@ -1,0 +1,589 @@
+{
+  "$schema_note": "Leaflet fold simulator presets. Units: mm. Research: research-sizes-folds.md (2026-08-08).",
+  "version": "1.1.0",
+  "updated": "2026-08-08",
+  "locale": "ko-KR",
+
+  "defaults": {
+    "sizeId": "a4",
+    "foldId": "half",
+    "orientation": "portrait",
+    "foldAxis": "vertical",
+    "innerNarrowDeltaMm": 2,
+    "innerNarrowDeltaMinMm": 1,
+    "innerNarrowDeltaMaxMm": 4,
+    "scoreSafeMarginMm": 4,
+    "bleedMm": 0,
+    "phase": "mvp",
+    "productMode": "fold",
+    "booklet": {
+      "sizeId": "a5",
+      "pageCount": 12,
+      "bindingId": "saddle_stitch",
+      "orientation": "portrait"
+    }
+  },
+
+  "productModes": [
+    {
+      "id": "fold",
+      "label": "접지 리플렛",
+      "description": "한 장 접기 — 이단·3단·대문 등"
+    },
+    {
+      "id": "booklet",
+      "label": "책자 · 브로슈어",
+      "description": "여러 페이지 — 중철·무선, 넘기기"
+    }
+  ],
+
+  "bindings": [
+    {
+      "id": "saddle_stitch",
+      "label": "중철 제본",
+      "labelEn": "Saddle stitch",
+      "pageMultiple": 4,
+      "minPages": 4,
+      "maxPages": 48,
+      "note": "가운데 스테이플. 페이지 수는 4의 배수. 얇은 책자·브로슈어."
+    },
+    {
+      "id": "perfect_bound",
+      "label": "무선 제본",
+      "labelEn": "Perfect bound",
+      "pageMultiple": 2,
+      "minPages": 8,
+      "maxPages": 64,
+      "note": "등 풀칠. 페이지 많은 브로슈어·카탈로그에 적합."
+    },
+    {
+      "id": "spiral",
+      "label": "스프링(링) 제본",
+      "labelEn": "Spiral / wire-o",
+      "pageMultiple": 2,
+      "minPages": 4,
+      "maxPages": 64,
+      "note": "완전히 펼쳐지는 안내서·워크북."
+    }
+  ],
+
+  "orientations": [
+    {
+      "id": "portrait",
+      "label": "세로형",
+      "labelEn": "Portrait",
+      "note": "긴 변이 세로. 한국 리플렛 기본."
+    },
+    {
+      "id": "landscape",
+      "label": "가로형",
+      "labelEn": "Landscape",
+      "note": "지도·타임라인·파노라마에 유리."
+    }
+  ],
+
+  "foldAxes": [
+    {
+      "id": "vertical",
+      "label": "세로 접기 (세로 오시)",
+      "labelEn": "Vertical folds",
+      "description": "접는 선이 세로 → 패널이 좌우로 나뉨. A4 3단 표준."
+    },
+    {
+      "id": "horizontal",
+      "label": "가로 접기 (가로 오시)",
+      "labelEn": "Horizontal folds",
+      "description": "접는 선이 가로 → 패널이 위아래로 나뉨."
+    }
+  ],
+
+  "sizes": [
+    {
+      "id": "a4",
+      "label": "A4",
+      "labelDetail": "A4 (210×297mm)",
+      "aliases": ["국8절", "ISO A4"],
+      "standard": "ISO 216",
+      "widthMm": 210,
+      "heightMm": 297,
+      "common": true,
+      "phase": "mvp",
+      "notes": "가장 일반적인 리플렛 전개 사이즈."
+    },
+    {
+      "id": "a3",
+      "label": "A3",
+      "labelDetail": "A3 (297×420mm)",
+      "aliases": ["국4절", "ISO A3"],
+      "standard": "ISO 216",
+      "widthMm": 297,
+      "heightMm": 420,
+      "common": true,
+      "phase": "mvp",
+      "notes": "정보 많은 리플렛·대형 안내."
+    },
+    {
+      "id": "a5",
+      "label": "A5",
+      "labelDetail": "A5 (148×210mm)",
+      "aliases": ["국16절", "ISO A5"],
+      "standard": "ISO 216",
+      "widthMm": 148,
+      "heightMm": 210,
+      "common": true,
+      "phase": "mvp",
+      "notes": "미니·배포용. A4의 반."
+    },
+    {
+      "id": "a6",
+      "label": "A6",
+      "labelDetail": "A6 (105×148mm)",
+      "aliases": ["ISO A6"],
+      "standard": "ISO 216",
+      "widthMm": 105,
+      "heightMm": 148,
+      "common": false,
+      "phase": "v1.1",
+      "notes": "엽서·초소형."
+    },
+    {
+      "id": "a2",
+      "label": "A2",
+      "labelDetail": "A2 (420×594mm)",
+      "aliases": ["ISO A2"],
+      "standard": "ISO 216",
+      "widthMm": 420,
+      "heightMm": 594,
+      "common": false,
+      "phase": "v1.1",
+      "notes": "대형 리플렛·포스터급."
+    },
+    {
+      "id": "b5_jis",
+      "label": "B5 (JIS)",
+      "labelDetail": "B5 JIS (182×257mm)",
+      "aliases": ["B5", "JIS B5", "한국 상용 B5"],
+      "standard": "JIS",
+      "widthMm": 182,
+      "heightMm": 257,
+      "common": true,
+      "phase": "mvp",
+      "notes": "한국 전단지·리플렛에서 'B5'로 자주 지칭되는 사이즈. ISO B5와 다름."
+    },
+    {
+      "id": "b5_iso",
+      "label": "B5 (ISO)",
+      "labelDetail": "B5 ISO (176×250mm)",
+      "aliases": ["ISO B5"],
+      "standard": "ISO 216",
+      "widthMm": 176,
+      "heightMm": 250,
+      "common": false,
+      "phase": "mvp",
+      "notes": "ISO 표준 B5. 서적·일부 인쇄. 상용 B5(182×257)와 혼동 주의."
+    },
+    {
+      "id": "b4_iso",
+      "label": "B4 (ISO)",
+      "labelDetail": "B4 ISO (250×353mm)",
+      "aliases": ["ISO B4"],
+      "standard": "ISO 216",
+      "widthMm": 250,
+      "heightMm": 353,
+      "common": false,
+      "phase": "v1.1",
+      "notes": "한국 리플렛에서는 상대적으로 덜 씀."
+    },
+    {
+      "id": "b6_iso",
+      "label": "B6 (ISO)",
+      "labelDetail": "B6 ISO (125×176mm)",
+      "aliases": ["ISO B6"],
+      "standard": "ISO 216",
+      "widthMm": 125,
+      "heightMm": 176,
+      "common": false,
+      "phase": "v1.1",
+      "notes": "소형."
+    },
+    {
+      "id": "dl_finished",
+      "label": "DL (접은 크기)",
+      "labelDetail": "DL 완성 110×220mm",
+      "aliases": ["DL envelope"],
+      "standard": "ISO 269 (envelope)",
+      "widthMm": 110,
+      "heightMm": 220,
+      "common": false,
+      "phase": "v1.1",
+      "role": "finished_reference",
+      "notes": "봉투 호환 완성 사이즈 참고. 전개 사이즈가 아님."
+    },
+    {
+      "id": "letter",
+      "label": "Letter (US)",
+      "labelDetail": "Letter (216×279mm)",
+      "aliases": ["US Letter", "ANSI A"],
+      "standard": "ANSI",
+      "widthMm": 216,
+      "heightMm": 279,
+      "common": false,
+      "phase": "v1.2",
+      "notes": "미국 규격."
+    },
+    {
+      "id": "custom",
+      "label": "직접 입력",
+      "labelDetail": "커스텀 mm",
+      "aliases": ["custom", "중간 사이즈"],
+      "standard": null,
+      "widthMm": null,
+      "heightMm": null,
+      "minWidthMm": 50,
+      "maxWidthMm": 600,
+      "minHeightMm": 50,
+      "maxHeightMm": 900,
+      "common": true,
+      "phase": "mvp",
+      "notes": "A4·B5 사이 중간 사이즈 등 비표준. 사용자가 widthMm·heightMm 직접 입력."
+    }
+  ],
+
+  "folds": [
+    {
+      "id": "half",
+      "label": "이단 반접지",
+      "labelShort": "이단",
+      "aliases": ["2단", "반접지", "반 접기", "이단 접지"],
+      "labelEn": "Half fold / Bi-fold / Book fold",
+      "panelCount": 2,
+      "totalSides": 4,
+      "foldCount": 1,
+      "phase": "mvp",
+      "algorithm": "equal",
+      "innerNarrow": false,
+      "description": "종이를 한 번 반으로 접음. 총 4면. 면폭 균등.",
+      "useCases": ["회사소개", "메뉴", "프로그램", "간단한 안내"],
+      "viewModes": ["flat", "folded", "book_flip", "orbit3d"]
+    },
+    {
+      "id": "cfold3",
+      "label": "3단 문접기 (C)",
+      "labelShort": "3단 C",
+      "aliases": ["일반 3단", "문접기", "두루마리 3단", "C접지", "롤 폴드 3단", "letter fold"],
+      "labelEn": "C-fold / Letter fold / 3-panel roll",
+      "panelCount": 3,
+      "totalSides": 6,
+      "foldCount": 2,
+      "phase": "mvp",
+      "algorithm": "c_fold_inner_narrow",
+      "innerNarrow": true,
+      "description": "한 방향으로 말아 안쪽 패널이 포켓에 들어감. 가장 흔한 3단. 안쪽 면 2~3mm 축소.",
+      "useCases": ["홍보", "서비스 안내", "제품 설명", "우편 발송"],
+      "viewModes": ["flat", "folded", "sequential_open", "orbit3d"]
+    },
+    {
+      "id": "zfold3",
+      "label": "3단 병풍 (Z)",
+      "labelShort": "3단 Z",
+      "aliases": ["병풍 3단", "Z접지", "N접지", "세문", "아코디언 3단"],
+      "labelEn": "Z-fold / Accordion 3-panel",
+      "panelCount": 3,
+      "totalSides": 6,
+      "foldCount": 2,
+      "phase": "mvp",
+      "algorithm": "equal",
+      "innerNarrow": false,
+      "description": "지그재그로 접음. 면폭 거의 균등. 펼치면 연속 면.",
+      "useCases": ["지도", "타임라인", "연혁", "연속 이미지"],
+      "viewModes": ["flat", "folded", "accordion", "orbit3d"]
+    },
+    {
+      "id": "gate4",
+      "label": "4단 대문 (관자)",
+      "labelShort": "대문",
+      "aliases": ["대문접지", "관자접지", "게이트 폴드", "4단 대문"],
+      "labelEn": "Gate fold",
+      "panelCount": 4,
+      "totalSides": 8,
+      "foldCount": 3,
+      "phase": "v1.1",
+      "algorithm": "gate_wings_narrow",
+      "innerNarrow": true,
+      "description": "좌우 날개를 가운데로 모아 대문처럼 닫음. 날개 2~3mm 축소.",
+      "useCases": ["임팩트 광고", "프리미엄 안내", "오픈하우스"],
+      "viewModes": ["flat", "folded", "gate_open", "orbit3d"]
+    },
+    {
+      "id": "accordion4",
+      "label": "4단 병풍",
+      "labelShort": "4단 병풍",
+      "aliases": ["병풍 4단", "아코디언 4단"],
+      "labelEn": "4-panel accordion",
+      "panelCount": 4,
+      "totalSides": 8,
+      "foldCount": 3,
+      "phase": "v1.1",
+      "algorithm": "equal",
+      "innerNarrow": false,
+      "description": "지그재그 4패널. 펼치면 파노라마. 6단 이상으로 확장 가능 구조.",
+      "useCases": ["전시", "제품 라인업", "연혁", "지도"],
+      "viewModes": ["flat", "folded", "accordion", "orbit3d"]
+    },
+    {
+      "id": "roll4",
+      "label": "4단 두루마리",
+      "labelShort": "4단 롤",
+      "aliases": ["두루마리접지", "롤 폴드 4단"],
+      "labelEn": "4-panel roll fold",
+      "panelCount": 4,
+      "totalSides": 8,
+      "foldCount": 3,
+      "phase": "v1.2",
+      "algorithm": "roll_progressive_narrow",
+      "innerNarrow": true,
+      "description": "돌돌 말아 넣기. 안쪽일수록 면폭 축소.",
+      "useCases": ["단계별 가이드", "핸드북형 안내"],
+      "viewModes": ["flat", "folded", "sequential_open", "orbit3d"]
+    },
+    {
+      "id": "french",
+      "label": "십자 접지 (프랑스)",
+      "labelShort": "십자",
+      "aliases": ["프랑스 접지", "크로스 폴드"],
+      "labelEn": "French fold / Cross fold",
+      "panelCount": 4,
+      "totalSides": 4,
+      "foldCount": 2,
+      "phase": "later",
+      "algorithm": "cross_half",
+      "innerNarrow": false,
+      "description": "가로 반 + 세로 반. 카드·초대장형. 일반 리플렛 단수와 구조가 다름.",
+      "useCases": ["초대장", "카드", "우편"],
+      "viewModes": ["flat", "folded", "orbit3d"]
+    }
+  ],
+
+  "algorithms": {
+    "equal": {
+      "id": "equal",
+      "label": "균등 분할",
+      "description": "접는 축 길이를 panelCount로 균등 분할. Z·이단·병풍에 사용.",
+      "params": {},
+      "compute": "each = axisLength / panelCount; panels = [each] * panelCount"
+    },
+    "c_fold_inner_narrow": {
+      "id": "c_fold_inner_narrow",
+      "label": "C접지 (안쪽 축소)",
+      "description": "안쪽으로 말려 들어가는 마지막 패널을 deltaMm만큼 좁히고, 나머지를 바깥 패널에 분배. 합 = axisLength.",
+      "params": {
+        "deltaMm": { "from": "defaults.innerNarrowDeltaMm", "overridable": true }
+      },
+      "panelRoles": ["outer", "middle", "inner_tuck"],
+      "compute": "inner = floor((axisLength / 3) - deltaMm) 계열 분배; 합이 정확히 axisLength가 되도록 outer·middle 조정. 기본 예 A4 210: 71 / 71 / 68 (delta=2 근사 재분배)."
+    },
+    "gate_wings_narrow": {
+      "id": "gate_wings_narrow",
+      "label": "대문 (날개 축소)",
+      "description": "좌우 날개 동일 폭, 가운데 나머지. 각 날개에서 deltaMm 축소 반영.",
+      "params": {
+        "deltaMm": { "from": "defaults.innerNarrowDeltaMm", "overridable": true },
+        "centerRatio": { "default": 0.5, "note": "가운데 패널이 전체의 약 50%에 가깝게 (구현 시 인쇄소 템플릿 맞춤)" }
+      },
+      "panelRoles": ["left_wing", "center_left", "center_right", "right_wing"],
+      "compute": "wings narrow by delta; center takes remainder; left_wing ≈ right_wing"
+    },
+    "roll_progressive_narrow": {
+      "id": "roll_progressive_narrow",
+      "label": "두루마리 (점진 축소)",
+      "description": "바깥→안쪽 순으로 패널마다 deltaMm씩 좁아짐. 합 = axisLength.",
+      "params": {
+        "deltaMm": { "from": "defaults.innerNarrowDeltaMm", "overridable": true }
+      },
+      "panelRoles": ["outer", "mid1", "mid2", "inner_tuck"],
+      "compute": "outer widest; each subsequent panel -= deltaMm; renormalize sum to axisLength"
+    },
+    "cross_half": {
+      "id": "cross_half",
+      "label": "십자 이등분",
+      "description": "가로·세로 각각 반 접기. 패널 그리드 2×2.",
+      "params": {},
+      "compute": "width/2 × height/2 quadrants"
+    }
+  },
+
+  "sizeFoldHints": [
+    {
+      "sizeId": "a4",
+      "foldId": "half",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 105, "height": 297 },
+      "note": "길쭉한 책자형"
+    },
+    {
+      "sizeId": "a4",
+      "foldId": "half",
+      "foldAxis": "horizontal",
+      "approxFinishedMm": { "width": 210, "height": 148.5 },
+      "note": "가로형 카드/메뉴"
+    },
+    {
+      "sizeId": "a4",
+      "foldId": "cfold3",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 100, "height": 210 },
+      "note": "가장 흔함. DL 봉투와 호환 언급 많음"
+    },
+    {
+      "sizeId": "a4",
+      "foldId": "zfold3",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 70, "height": 297 },
+      "note": "균등 3분할 시 접은 폭 ≈70"
+    },
+    {
+      "sizeId": "a3",
+      "foldId": "half",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 210, "height": 297 },
+      "note": "접으면 A4급"
+    },
+    {
+      "sizeId": "a3",
+      "foldId": "cfold3",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 140, "height": 297 },
+      "note": "정보 많은 안내"
+    },
+    {
+      "sizeId": "b5_jis",
+      "foldId": "half",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 91, "height": 257 },
+      "note": "컴팩트 이단"
+    },
+    {
+      "sizeId": "b5_jis",
+      "foldId": "cfold3",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 61, "height": 257 },
+      "note": "가느다란 완성"
+    },
+    {
+      "sizeId": "a5",
+      "foldId": "half",
+      "foldAxis": "vertical",
+      "approxFinishedMm": { "width": 74, "height": 210 },
+      "note": "미니 이단"
+    },
+    {
+      "sizeId": "a5",
+      "foldId": "half",
+      "foldAxis": "horizontal",
+      "approxFinishedMm": { "width": 148, "height": 105 },
+      "note": "미니 가로 이단"
+    }
+  ],
+
+  "viewModes": [
+    {
+      "id": "flat",
+      "label": "전개도",
+      "description": "앞/뒤 펼친 면, 패널 가이드선, 면 번호"
+    },
+    {
+      "id": "folded",
+      "label": "접힌 상태",
+      "description": "완성 사이즈 박스 미리보기"
+    },
+    {
+      "id": "book_flip",
+      "label": "책처럼 넘기기",
+      "description": "이단 반접 전용 페이지 플립"
+    },
+    {
+      "id": "sequential_open",
+      "label": "순차 펼치기",
+      "description": "C/롤 접지 패널을 순서대로 열기"
+    },
+    {
+      "id": "accordion",
+      "label": "병풍 펼치기",
+      "description": "Z/아코디언 지그재그 펼침"
+    },
+    {
+      "id": "gate_open",
+      "label": "대문 열기",
+      "description": "좌우 날개 오픈 연출"
+    },
+    {
+      "id": "orbit3d",
+      "label": "3D 회전",
+      "description": "마우스로 360° 자유 회전"
+    }
+  ],
+
+  "imageInput": {
+    "modes": [
+      {
+        "id": "front_back",
+        "label": "앞·뒤 2장",
+        "description": "전개도 앞면·뒷면 이미지를 올리고 패널로 자동 분할"
+      },
+      {
+        "id": "per_panel",
+        "label": "패널별 업로드",
+        "description": "각 패널(면)마다 이미지 따로 지정"
+      },
+      {
+        "id": "both",
+        "label": "둘 다",
+        "description": "앞뒤 2장 후 패널 단위 오버라이드 가능",
+        "default": true
+      }
+    ]
+  },
+
+  "bookletPagePresets": [4, 8, 12, 16, 20, 24, 32, 40, 48],
+
+  "ui": {
+    "sizeSelectOrder": ["a4", "b5_jis", "a5", "a3", "b5_iso", "a6", "a2", "b4_iso", "b6_iso", "letter", "dl_finished", "custom"],
+    "bookletSizeSelectOrder": ["a5", "a4", "b5_jis", "b5_iso", "a6", "custom"],
+    "foldSelectOrderMvp": ["half", "cfold3", "zfold3"],
+    "foldSelectOrderAll": ["half", "cfold3", "zfold3", "gate4", "accordion4", "roll4", "french"],
+    "showPhaseBadge": true,
+    "labels": {
+      "size": "용지 사이즈 (펼친)",
+      "bookletSize": "한 페이지 크기 (완성)",
+      "fold": "접지 방식",
+      "delta": "안쪽 면 축소 (mm)",
+      "orientation": "방향",
+      "foldAxis": "접는 축",
+      "customWidth": "가로 (mm)",
+      "customHeight": "세로 (mm)",
+      "pageCount": "페이지 수",
+      "binding": "제본 방식"
+    }
+  },
+
+  "nameMap": {
+    "이단": "half",
+    "2단": "half",
+    "반접지": "half",
+    "3단": "cfold3",
+    "문접기": "cfold3",
+    "C접지": "cfold3",
+    "C": "cfold3",
+    "병풍": "zfold3",
+    "Z접지": "zfold3",
+    "Z": "zfold3",
+    "N접지": "zfold3",
+    "대문": "gate4",
+    "관자": "gate4",
+    "게이트": "gate4",
+    "두루마리": "roll4",
+    "롤": "roll4",
+    "십자": "french",
+    "프랑스": "french"
+  }
+}
