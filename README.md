@@ -145,12 +145,14 @@ leaflet-fold-sim/
 - [x] PDF 페이지 자동 분리 업로드 (책자 PDF / 접지 앞·뒤 1·2쪽)
 - [x] 인쇄소별 면폭 템플릿 저장 (localStorage · δ 값)
 - [x] 전개도·임포지션 PNG/PDF 내보내기
+- [x] 중철 부모 용지(A3 등) 자동 매핑 UI
+- [x] 무선·링 제본 페이지 순서 가이드 («인쇄 가이드»)
+- [x] 템플릿 JSON 파일 import/export
 
 ### 이후 후보
 
-- [ ] 중철 부모 용지(A3 등) 자동 매핑 UI
-- [ ] 무선 제본 페이지 순서 가이드
-- [ ] 템플릿 JSON 파일 import/export
+- [ ] 재단 여백(bleed)·안전 영역 가이드
+- [ ] GitHub Pages 데모 배포
 
 ---
 

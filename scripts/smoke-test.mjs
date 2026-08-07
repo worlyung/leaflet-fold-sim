@@ -13,8 +13,14 @@ const u = (p) => pathToFileURL(join(root, p)).href;
 const { computePanelSizes, computePanels, approxFinishedSize } = await import(
   u("js/panel-math.js")
 );
-const { buildSaddleImposition, formatSide } = await import(u("js/imposition.js"));
+const {
+  buildSaddleImposition,
+  formatSide,
+  suggestParentSheet,
+  buildPerfectBoundLeaves,
+} = await import(u("js/imposition.js"));
 const { normalizePageCount, buildSpreads } = await import(u("js/booklet.js"));
+const shopMod = await import(u("js/shop-templates.js"));
 
 let failed = 0;
 function assert(cond, msg) {
@@ -28,7 +34,7 @@ function assert(cond, msg) {
 
 // presets
 const presets = JSON.parse(readFileSync(join(root, "presets.json"), "utf8"));
-assert(presets.version === "1.2.0", `presets version ${presets.version}`);
+assert(presets.version === "1.3.0", `presets version ${presets.version}`);
 
 // panel math
 const c = computePanelSizes(210, 3, "c_fold_inner_narrow", 2);
@@ -90,6 +96,21 @@ const fixDir = join(root, "fixtures");
 assert(existsSync(fixDir), "fixtures/ exists");
 const jpgs = readdirSync(fixDir).filter((f) => /\.(jpg|jpeg|png)$/i.test(f));
 assert(jpgs.length >= 4, `fixtures images >=4 (got ${jpgs.length}: ${jpgs.join(",")})`);
+
+// parent sheet mapping
+const a5 = suggestParentSheet({ widthMm: 148, heightMm: 210 });
+assert(a5.suggested?.id === "a4", `A5→parent ${a5.suggested?.id}`);
+const a4 = suggestParentSheet({ widthMm: 210, heightMm: 297 });
+assert(a4.suggested?.id === "a3", `A4→parent ${a4.suggested?.id}`);
+
+// perfect bound leaves
+const leaves = buildPerfectBoundLeaves(8);
+assert(leaves.length === 4, "8p → 4 leaves");
+assert(leaves[0].front === 0 && leaves[0].back === 1, "leaf1 = 1|2");
+
+assert(typeof shopMod.exportTemplatesPayload === "function", "exportTemplatesPayload");
+assert(typeof shopMod.importTemplatesPayload === "function", "importTemplatesPayload");
+assert(typeof shopMod.downloadTemplatesJson === "function", "downloadTemplatesJson");
 
 // export module loads
 try {

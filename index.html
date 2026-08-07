@@ -27,7 +27,7 @@
             <button type="button" data-mode="booklet" role="tab">책자 · 브로슈어</button>
           </div>
           <button type="button" id="btnDemoImages" title="fixtures 샘플 이미지">데모 이미지</button>
-          <span class="badge mvp">v1.2</span>
+          <span class="badge mvp">v1.3</span>
           <span id="presetVer">presets</span>
         </div>
       </header>
@@ -94,7 +94,21 @@
               <button type="button" id="btnSaveShopTpl">현재 δ 저장</button>
               <button type="button" id="btnDelShopTpl">삭제</button>
             </div>
-            <p class="hint">브라우저 localStorage에 저장됩니다.</p>
+            <div class="row" style="margin-top:0.45rem">
+              <button type="button" id="btnExportShopJson">JSON 내보내기</button>
+              <label class="file-btn" id="shopImportLabel" style="min-height:2.2rem;margin:0">
+                JSON 가져오기
+                <input id="shopImportFile" type="file" accept="application/json,.json" />
+              </label>
+            </div>
+            <div class="field" style="margin-top:0.4rem">
+              <label for="shopImportMode">가져오기 방식</label>
+              <select id="shopImportMode">
+                <option value="merge">병합 (같은 id 덮어쓰기)</option>
+                <option value="replace">전체 교체</option>
+              </select>
+            </div>
+            <p class="hint">브라우저 localStorage + JSON 파일 백업/공유.</p>
           </section>
 
           <section class="section">
@@ -168,6 +182,21 @@
                 <option value="landscape">가로형</option>
               </select>
             </div>
+            <div class="field" id="parentSheetField">
+              <label for="parentSheetSelect">중철 부모 용지 (펼친 장)</label>
+              <select id="parentSheetSelect"></select>
+              <p class="hint" id="parentSheetHint">완성 페이지 2up 기준 자동 추천</p>
+            </div>
+            <div class="row" id="parentCustomRow" hidden>
+              <div class="field">
+                <label for="parentCustomW">부모 가로 mm</label>
+                <input id="parentCustomW" type="number" min="50" max="1200" value="297" />
+              </div>
+              <div class="field">
+                <label for="parentCustomH">부모 세로 mm</label>
+                <input id="parentCustomH" type="number" min="50" max="1200" value="420" />
+              </div>
+            </div>
           </section>
 
           <section class="section">
@@ -225,6 +254,7 @@
             <button type="button" data-view="spread" class="active">스프레드</button>
             <button type="button" data-view="flipbook">플립북</button>
             <button type="button" data-view="imposition">임포지션</button>
+            <button type="button" data-view="printguide">인쇄 가이드</button>
             <button type="button" data-view="thumbs">전체 페이지</button>
             <button type="button" data-view="book3d">3D 책</button>
           </div>
@@ -264,6 +294,9 @@
           </div>
           <div class="stage" id="view-imposition">
             <div id="impositionHost" class="imposition-host"></div>
+          </div>
+          <div class="stage" id="view-printguide">
+            <div id="printGuideHost" class="imposition-host"></div>
           </div>
           <div class="stage" id="view-book3d">
             <div class="stage-3d-inner" id="book3dInner">

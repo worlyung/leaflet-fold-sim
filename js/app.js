@@ -14,12 +14,19 @@ import { createPageCurlBook } from "./page-curl.js";
 import {
   buildSaddleImposition,
   formatSide,
+  sheetSizeFromPage,
+  suggestParentSheet,
+  PARENT_SHEET_PRESETS,
+  buildPerfectBoundLeaves,
+  buildReaderOrder,
 } from "./imposition.js";
 import {
   listTemplates,
   upsertTemplate,
   deleteTemplate,
   getTemplate,
+  downloadTemplatesJson,
+  importTemplatesFromFile,
 } from "./shop-templates.js";
 import {
   renderFoldFlatCanvas,
@@ -63,6 +70,9 @@ const state = {
   spreadIndex: 0,
   curlBook: null,
   book3dViewer: null,
+  parentSheetId: "auto",
+  parentCustomW: 297,
+  parentCustomH: 420,
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -305,6 +315,115 @@ function populateSelects() {
   updateCustomVisibility();
   updateDeltaVisibility();
   updateBookletCustomVisibility();
+  populateParentSheetSelect();
+  refreshParentSheetUI();
+  updateParentSheetFieldVisibility();
+}
+
+function updateParentSheetFieldVisibility() {
+  const el = $("#parentSheetField");
+  if (el) el.hidden = state.bindingId !== "saddle_stitch";
+  const row = $("#parentCustomRow");
+  if (row)
+    row.hidden =
+      state.bindingId !== "saddle_stitch" || state.parentSheetId !== "custom";
+}
+
+function populateParentSheetSelect() {
+  const sel = $("#parentSheetSelect");
+  if (!sel) return;
+  const cur = state.parentSheetId || "auto";
+  sel.innerHTML = "";
+  const auto = document.createElement("option");
+  auto.value = "auto";
+  auto.textContent = "자동 추천";
+  sel.appendChild(auto);
+  PARENT_SHEET_PRESETS.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.label + (p.widthMm ? ` (${p.widthMm}×${p.heightMm})` : "");
+    sel.appendChild(opt);
+  });
+  sel.value = cur;
+  if (![...sel.options].some((o) => o.value === cur)) sel.value = "auto";
+  state.parentSheetId = sel.value;
+}
+
+function getParentSheetResolved() {
+  const page = getBookletPageSize();
+  const need = sheetSizeFromPage(page);
+  const suggestion = suggestParentSheet(page);
+  let parent = null;
+  let source = "auto";
+
+  if (state.parentSheetId === "auto") {
+    if (suggestion.suggested) {
+      parent = {
+        id: suggestion.suggested.id,
+        label: suggestion.suggested.label,
+        widthMm: suggestion.suggested.widthMm,
+        heightMm: suggestion.suggested.heightMm,
+      };
+      source = "auto";
+    } else {
+      parent = {
+        id: "custom",
+        label: "필요 치수",
+        widthMm: need.widthMm,
+        heightMm: need.heightMm,
+      };
+      source = "need";
+    }
+  } else if (state.parentSheetId === "custom") {
+    parent = {
+      id: "custom",
+      label: "직접 입력",
+      widthMm: state.parentCustomW,
+      heightMm: state.parentCustomH,
+    };
+    source = "custom";
+  } else {
+    const p = PARENT_SHEET_PRESETS.find((x) => x.id === state.parentSheetId);
+    parent = p
+      ? {
+          id: p.id,
+          label: p.label,
+          widthMm: p.widthMm,
+          heightMm: p.heightMm,
+        }
+      : {
+          id: "custom",
+          label: "필요 치수",
+          widthMm: need.widthMm,
+          heightMm: need.heightMm,
+        };
+    source = "manual";
+  }
+
+  const fits =
+    parent &&
+    ((parent.widthMm + 0.5 >= need.widthMm &&
+      parent.heightMm + 0.5 >= need.heightMm) ||
+      (parent.widthMm + 0.5 >= need.heightMm &&
+        parent.heightMm + 0.5 >= need.widthMm));
+
+  return { page, need, parent, suggestion, source, fits };
+}
+
+function refreshParentSheetUI() {
+  updateParentSheetFieldVisibility();
+  const hint = $("#parentSheetHint");
+  if (!hint) return;
+  if (state.bindingId !== "saddle_stitch") {
+    hint.textContent = "중철일 때만 부모 용지 매핑을 사용합니다.";
+    return;
+  }
+  const r = getParentSheetResolved();
+  const fitTxt = r.fits ? "수용 가능" : "여유 부족(재단·여백 확인)";
+  hint.textContent = `필요 전개 ${r.need.widthMm}×${r.need.heightMm} mm → 부모 ${r.parent.label} ${r.parent.widthMm}×${r.parent.heightMm} mm (${fitTxt}). ${r.suggestion.reason}`;
+  if (state.parentSheetId === "auto" && r.suggestion.suggested) {
+    // keep select on auto; don't force change
+  }
 }
 
 function refillPageCountSelect() {
@@ -471,6 +590,29 @@ function bindUI() {
     renderAll();
     showBanner(`템플릿 적용: ${t.name}`, false);
   });
+  $("#btnExportShopJson")?.addEventListener("click", () => {
+    downloadTemplatesJson(
+      `shop-templates-${new Date().toISOString().slice(0, 10)}.json`
+    );
+    showBanner("템플릿 JSON 내보내기 완료", false);
+  });
+  $("#shopImportFile")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const mode = $("#shopImportMode")?.value || "merge";
+      const res = await importTemplatesFromFile(file, mode);
+      refreshShopTemplateSelect();
+      $("#shopImportLabel")?.classList.add("has-file");
+      showBanner(
+        `템플릿 ${res.imported}개 가져옴 (총 ${res.total}개, ${mode})`,
+        false
+      );
+    } catch (err) {
+      showBanner(`JSON 가져오기 실패: ${err.message}`, true);
+    }
+    e.target.value = "";
+  });
 
   // export fold
   $("#btnExportFoldPng")?.addEventListener("click", () => exportFold("png"));
@@ -587,6 +729,7 @@ function bindUI() {
   $("#bookletSizeSelect").addEventListener("change", (e) => {
     state.bookletSizeId = e.target.value;
     updateBookletCustomVisibility();
+    refreshParentSheetUI();
     renderAll();
   });
   $("#bindingSelect").addEventListener("change", (e) => {
@@ -597,6 +740,8 @@ function bindUI() {
     ensurePageArray();
     rebuildBookletPageList();
     state.spreadIndex = 0;
+    updateParentSheetFieldVisibility();
+    updateViewModeButtons();
     renderAll();
   });
   $("#pageCountSelect").addEventListener("change", (e) => {
@@ -611,14 +756,30 @@ function bindUI() {
   });
   $("#bookletOrient").addEventListener("change", (e) => {
     state.bookletOrient = e.target.value;
+    refreshParentSheetUI();
     renderAll();
   });
   $("#bookletCustomW").addEventListener("input", (e) => {
     state.bookletCustomW = Number(e.target.value) || 148;
+    refreshParentSheetUI();
     renderAll();
   });
   $("#bookletCustomH").addEventListener("input", (e) => {
     state.bookletCustomH = Number(e.target.value) || 210;
+    refreshParentSheetUI();
+    renderAll();
+  });
+  $("#parentSheetSelect")?.addEventListener("change", (e) => {
+    state.parentSheetId = e.target.value;
+    $("#parentCustomRow").hidden = state.parentSheetId !== "custom";
+    renderAll();
+  });
+  $("#parentCustomW")?.addEventListener("input", (e) => {
+    state.parentCustomW = Number(e.target.value) || 297;
+    renderAll();
+  });
+  $("#parentCustomH")?.addEventListener("input", (e) => {
+    state.parentCustomH = Number(e.target.value) || 420;
     renderAll();
   });
 
@@ -791,6 +952,7 @@ function updateViewModeButtons() {
       const v = btn.dataset.view;
       let ok = true;
       if (v === "imposition") ok = state.bindingId === "saddle_stitch";
+      // printguide works for all bindings
       btn.disabled = !ok;
       btn.classList.toggle("active", state.viewMode === v);
     });
@@ -798,7 +960,7 @@ function updateViewModeButtons() {
       state.viewMode === "imposition" &&
       state.bindingId !== "saddle_stitch"
     ) {
-      state.viewMode = "spread";
+      state.viewMode = "printguide";
     }
   }
 }
@@ -1186,9 +1348,15 @@ function updateBookletStats() {
   const est = estimateSheets(state.pageCount, state.bindingId);
   const filled = state.pageImages.filter(Boolean).length;
   const spreads = buildSpreads(state.pageCount);
+  let parentLine = "";
+  if (state.bindingId === "saddle_stitch") {
+    const r = getParentSheetResolved();
+    parentLine = `<div><strong>부모 용지</strong> ${r.parent.label} ${r.parent.widthMm}×${r.parent.heightMm} mm · 필요 ${r.need.widthMm}×${r.need.heightMm} · ${r.fits ? "OK" : "여유↓"}</div>`;
+  }
   $("#stats").innerHTML = `
     <div><strong>페이지</strong> ${page.widthMm} × ${page.heightMm} mm · ${state.pageCount}p</div>
     <div><strong>제본</strong> ${binding?.label || state.bindingId}</div>
+    ${parentLine}
     <div><strong>스프레드</strong> ${spreads.length}개</div>
     <div><strong>이미지</strong> ${filled} / ${state.pageCount}</div>
     <div class="credit-note">${est.note}</div>
@@ -1208,18 +1376,129 @@ function renderBooklet() {
     flipbook: "view-flipbook",
     thumbs: "view-thumbs",
     imposition: "view-imposition",
+    printguide: "view-printguide",
     book3d: "view-book3d",
   };
   $(`#${map[state.viewMode] || "view-flipbook"}`)?.classList.add("active");
 
   $("#bookletNav").hidden = !["spread", "flipbook"].includes(state.viewMode);
   $("#foldAmountControl").hidden = state.viewMode !== "book3d";
+  refreshParentSheetUI();
 
   if (state.viewMode === "spread") renderBookletSpread();
   else if (state.viewMode === "flipbook") renderBookletFlipbook();
   else if (state.viewMode === "thumbs") renderBookletThumbs();
   else if (state.viewMode === "imposition") renderImposition();
+  else if (state.viewMode === "printguide") renderPrintGuide();
   else if (state.viewMode === "book3d") renderBooklet3d();
+}
+
+function renderPrintGuide() {
+  const host = $("#printGuideHost");
+  if (!host) return;
+  host.innerHTML = "";
+  const page = getBookletPageSize();
+  const binding = state.presets.bindings?.find((b) => b.id === state.bindingId);
+
+  const intro = document.createElement("div");
+  intro.className = "imposition-intro";
+  intro.innerHTML = `<strong>인쇄 · 페이지 순서 가이드</strong> · ${binding?.label || state.bindingId} · ${state.pageCount}p · 완성 ${page.widthMm}×${page.heightMm} mm`;
+  host.appendChild(intro);
+
+  if (state.bindingId === "saddle_stitch") {
+    const r = getParentSheetResolved();
+    const box = document.createElement("div");
+    box.className = "imposition-sheet";
+    box.innerHTML = `
+      <div class="imposition-title">중철 · 부모 용지 매핑</div>
+      <p class="hint" style="margin:0 0 0.5rem">완성 페이지를 좌우 2up으로 올린 뒤 가운데 접어 중철합니다.</p>
+      <div class="stats">
+        <div><strong>필요 전개</strong> ${r.need.widthMm} × ${r.need.heightMm} mm</div>
+        <div><strong>부모 용지</strong> ${r.parent.label} ${r.parent.widthMm} × ${r.parent.heightMm} mm (${r.source})</div>
+        <div><strong>적합</strong> ${r.fits ? "예 — 표준지에 들어감" : "아니오 — 여백·재단 또는 더 큰 용지"}</div>
+        <div class="credit-note">${r.suggestion.reason}</div>
+      </div>
+    `;
+    if (r.suggestion.alternatives?.length) {
+      const ul = document.createElement("div");
+      ul.className = "panel-widths";
+      ul.style.marginTop = "0.5rem";
+      r.suggestion.alternatives.forEach((a) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${a.label} ${a.widthMm}×${a.heightMm}`;
+        ul.appendChild(chip);
+      });
+      box.appendChild(ul);
+    }
+    host.appendChild(box);
+
+    try {
+      const imp = buildSaddleImposition(state.pageCount);
+      const sheetBox = document.createElement("div");
+      sheetBox.className = "imposition-sheet";
+      sheetBox.innerHTML = `<div class="imposition-title">시트 인쇄 순서 (바깥→안)</div>`;
+      const table = document.createElement("div");
+      table.className = "guide-table";
+      imp.forEach((s) => {
+        const row = document.createElement("div");
+        row.className = "guide-row";
+        row.innerHTML = `<span>${s.sheetLabel}</span><span>앞 ${formatSide(s.front, state.pageCount)}</span><span>뒤 ${formatSide(s.back, state.pageCount)}</span>`;
+        table.appendChild(row);
+      });
+      sheetBox.appendChild(table);
+      host.appendChild(sheetBox);
+    } catch (err) {
+      host.innerHTML += `<p class="book-hint" style="color:#f07178">${err.message}</p>`;
+    }
+    return;
+  }
+
+  // Perfect bound / spiral
+  const leaves = buildPerfectBoundLeaves(state.pageCount);
+  const reader = buildReaderOrder(state.pageCount);
+
+  const how = document.createElement("div");
+  how.className = "imposition-sheet";
+  how.innerHTML = `
+    <div class="imposition-title">${binding?.label || "무선/링"} · 인쇄 방식</div>
+    <p class="hint" style="margin:0">
+      한 장(리프)의 <strong>앞면 = 홀수 페이지</strong>, <strong>뒷면 = 짝수 페이지</strong>로 양면 인쇄한 뒤
+      ${state.bindingId === "spiral" ? "링·스프링으로 제본" : "등(spine)에 풀로 무선 제본"}합니다.
+      중철처럼 페이지를 교차 배치하지 않습니다.
+    </p>
+  `;
+  host.appendChild(how);
+
+  const leafBox = document.createElement("div");
+  leafBox.className = "imposition-sheet";
+  leafBox.innerHTML = `<div class="imposition-title">리프(장) 배치 · 총 ${leaves.length}장</div>`;
+  const leafTable = document.createElement("div");
+  leafTable.className = "guide-table";
+  leaves.forEach((L) => {
+    const row = document.createElement("div");
+    row.className = "guide-row";
+    const f = L.front != null ? `${L.front + 1}p` : "—";
+    const b = L.back != null ? `${L.back + 1}p` : "—";
+    row.innerHTML = `<span>${L.leafLabel}</span><span>앞 ${f}</span><span>뒤 ${b}</span><span class="muted">${L.readerNote}</span>`;
+    leafTable.appendChild(row);
+  });
+  leafBox.appendChild(leafTable);
+  host.appendChild(leafBox);
+
+  const readBox = document.createElement("div");
+  readBox.className = "imposition-sheet";
+  readBox.innerHTML = `<div class="imposition-title">읽는 순서 (1 → ${state.pageCount})</div>`;
+  const chips = document.createElement("div");
+  chips.className = "panel-widths";
+  reader.forEach((r) => {
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.textContent = `${r.pageNum} ${r.role}`;
+    chips.appendChild(c);
+  });
+  readBox.appendChild(chips);
+  host.appendChild(readBox);
 }
 
 function renderImposition() {
@@ -1229,7 +1508,7 @@ function renderImposition() {
 
   if (state.bindingId !== "saddle_stitch") {
     host.innerHTML =
-      `<p class="book-hint">임포지션 전개도는 <strong>중철 제본</strong>에서만 표시됩니다.</p>`;
+      `<p class="book-hint">임포지션 전개도는 <strong>중철 제본</strong>에서만 표시됩니다. 무선·링은 «인쇄 가이드»를 보세요.</p>`;
     return;
   }
 
@@ -1245,12 +1524,13 @@ function renderImposition() {
   const box = stageBox();
   const openW = page.widthMm * 2;
   const scale = mmToScale(openW, page.heightMm, box.w * 0.88, box.h * 0.28, 16);
+  const parentR = getParentSheetResolved();
 
   const intro = document.createElement("div");
   intro.className = "imposition-intro";
   intro.innerHTML = `
     <strong>중철 임포지션</strong> · ${state.pageCount}페이지 · 시트 ${imp.length}장
-    <span class="credit-note"> · 한 장 앞면/뒷면에 2페이지씩 · 가운데 접어 중철</span>
+    <span class="credit-note"> · 부모 ${parentR.parent.label} ${parentR.parent.widthMm}×${parentR.parent.heightMm} mm (필요 ${parentR.need.widthMm}×${parentR.need.heightMm}) · ${parentR.fits ? "적합" : "여유 확인"}</span>
   `;
   host.appendChild(intro);
 
