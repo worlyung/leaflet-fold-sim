@@ -24,6 +24,11 @@
   box-sizing: border-box;
 }
 
+/* hidden 속성이 아래 display:flex/grid 규칙에 덮이지 않도록 */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -57,10 +62,17 @@ button:hover {
 }
 
 button.active,
-button[aria-pressed="true"] {
+button[aria-pressed="true"],
+button[aria-selected="true"] {
   border-color: var(--accent);
   background: rgba(91, 140, 255, 0.15);
   color: #cfe0ff;
+}
+
+/* 키보드 탭 이동 시 현재 위치가 보이도록 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -149,13 +161,28 @@ button:disabled {
   padding: 0.75rem 0.8rem;
 }
 
-.section h2 {
+.section h2,
+.section > summary {
   margin: 0 0 0.65rem;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* 접힌 상태에서는 제목 아래 여백 제거 */
+details.section:not([open]) > summary {
+  margin-bottom: 0;
+}
+
+.section > summary {
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.section > summary:hover {
+  color: var(--text);
 }
 
 .field {
@@ -198,6 +225,12 @@ input[type="number"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.45rem 0.55rem;
+}
+
+/* 긴 항목이 잘려나가지 않고 말줄임으로 끝나도록 */
+select {
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 select:focus,
@@ -293,7 +326,8 @@ input[type="range"] {
 /* Main stage */
 .main {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* 배너 · 툴바 · 스테이지(1fr) · 하단바 — 자식 4개와 행 수를 맞춘다 */
+  grid-template-rows: auto auto 1fr auto;
   min-width: 0;
   min-height: 0;
   background:
@@ -411,8 +445,8 @@ input[type="range"] {
       -45deg,
       #eef1f6,
       #eef1f6 8px,
-      #e6eaF1 8px,
-      #e6eaF1 16px
+      #e6eaf1 8px,
+      #e6eaf1 16px
     );
 }
 
@@ -599,21 +633,38 @@ input[type="range"] {
   color: #c5d8ff;
 }
 
-.side-toggle {
+/* 붙어 있는 한 벌의 선택 버튼들 (뷰 전환 · 앞/뒤) */
+.segment {
   display: inline-flex;
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  background: var(--bg-elev);
 }
 
-.side-toggle button {
+.segment button {
   border: none;
   border-radius: 0;
   background: transparent;
+  white-space: nowrap;
 }
 
-.side-toggle button.active {
+.segment button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segment button:hover:not(:disabled) {
+  background: #222938;
+}
+
+.segment button.active {
   background: rgba(91, 140, 255, 0.18);
+  color: #d7e6ff;
+}
+
+/* 테두리가 잘리지 않도록 포커스 링을 안쪽으로 */
+.segment button:focus-visible {
+  outline-offset: -2px;
 }
 
 /* Empty / error */
@@ -665,6 +716,10 @@ input[type="range"] {
   flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
+}
+
+.toolbar > div.segment {
+  gap: 0;
 }
 
 .booklet-pages {
@@ -1056,11 +1111,11 @@ input[type="range"] {
   border-left: 2px dashed rgba(240, 180, 41, 0.75);
 }
 
-section.section .row button {
+.section .row button {
   flex: 1;
 }
 
-section.section input[type="text"] {
+.section input[type="text"] {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);

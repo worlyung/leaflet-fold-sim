@@ -78,6 +78,15 @@ const state = {
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+// 선택 상태를 시각(.active)과 보조기술(aria) 양쪽에 동시에 반영한다.
+const setActive = (el, on) => {
+  el.classList.toggle("active", on);
+  el.setAttribute(
+    el.getAttribute("role") === "tab" ? "aria-selected" : "aria-pressed",
+    on ? "true" : "false"
+  );
+};
+
 async function main() {
   try {
     const res = await fetch("./presets.json");
@@ -469,7 +478,7 @@ function updateDeltaVisibility() {
 function setProductMode(mode, silent) {
   state.productMode = mode;
   $$("#modeToggle [data-mode]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.mode === mode)
+    setActive(b, b.dataset.mode === mode)
   );
   $("#panelFold").hidden = mode !== "fold";
   $("#panelBooklet").hidden = mode !== "booklet";
@@ -704,7 +713,7 @@ function bindUI() {
     btn.addEventListener("click", () => {
       state.showSide = btn.dataset.side;
       $$("[data-side]").forEach((b) =>
-        b.classList.toggle("active", b.dataset.side === state.showSide)
+        setActive(b, b.dataset.side === state.showSide)
       );
       renderAll();
     });
@@ -945,7 +954,7 @@ function updateViewModeButtons() {
           fold?.id === "cfold3" ||
           fold?.id === "zfold3";
       btn.disabled = !ok;
-      btn.classList.toggle("active", state.viewMode === v);
+      setActive(btn, state.viewMode === v);
     });
   } else {
     $$("#toolbarBooklet [data-view]").forEach((btn) => {
@@ -954,7 +963,7 @@ function updateViewModeButtons() {
       if (v === "imposition") ok = state.bindingId === "saddle_stitch";
       // printguide works for all bindings
       btn.disabled = !ok;
-      btn.classList.toggle("active", state.viewMode === v);
+      setActive(btn, state.viewMode === v);
     });
     if (
       state.viewMode === "imposition" &&
