@@ -333,6 +333,9 @@ export class Leaflet3DViewer {
 
   animate = () => {
     this._raf = requestAnimationFrame(this.animate);
+    // 숨겨진 뷰의 캔버스를 매 프레임 렌더하지 않는다 (display:none이면 offsetParent가 null)
+    // ponytail: position:fixed 조상이 생기면 이 판정이 깨진다 — 그때 checkVisibility()로 교체
+    if (!this.container.offsetParent) return;
     this.controls?.update?.();
     this.renderer.render(this.scene, this.camera);
   };

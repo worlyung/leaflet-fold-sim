@@ -420,8 +420,16 @@ export function createPageCurlBook(container, opts) {
 
   function onKey(e) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    // 플립북이 화면에 없으면(다른 뷰) 방향키를 가로채지 않는다
+    if (!container.offsetParent) return;
     const t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable))
+    if (
+      t &&
+      (t.tagName === "INPUT" ||
+        t.tagName === "SELECT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable)
+    )
       return;
     e.preventDefault();
     step(e.key === "ArrowRight" ? "next" : "prev");
