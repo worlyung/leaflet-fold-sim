@@ -75,7 +75,10 @@ export const PARENT_SHEET_PRESETS = [
   { id: "a2", label: "A2", widthMm: 420, heightMm: 594 },
   { id: "b4_iso", label: "B4 (ISO)", widthMm: 250, heightMm: 353 },
   { id: "b3_iso", label: "B3 (ISO)", widthMm: 353, heightMm: 500 },
-  { id: "srai3", label: "국4절(≈A3급)", widthMm: 297, heightMm: 420 },
+  // 국내 실무 판형. 재단 여분에 따라 인쇄소마다 1~2mm 차이가 납니다.
+  // 국전지 636×939 → 4절 / 46전지(사륙) 788×1091 → 4절
+  { id: "guk4", label: "국4절 (국전지 4절)", widthMm: 318, heightMm: 468 },
+  { id: "sr4", label: "46-4절 (사륙전지 4절)", widthMm: 394, heightMm: 545 },
   { id: "custom", label: "직접 입력", widthMm: null, heightMm: null },
 ];
 
