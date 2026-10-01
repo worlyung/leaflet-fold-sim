@@ -7,7 +7,7 @@
   "defaults": {
     "sizeId": "a4",
     "foldId": "half",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "foldAxis": "vertical",
     "innerNarrowDeltaMm": 2,
     "innerNarrowDeltaMinMm": 1,
@@ -19,7 +19,7 @@
     "booklet": {
       "sizeId": "a5",
       "pageCount": 12,
-      "bindingId": "saddle_stitch",
+      "bindingId": "hardcover",
       "orientation": "portrait"
     }
   },
@@ -39,12 +39,27 @@
 
   "bindings": [
     {
+      "id": "hardcover", "label": "각양장", "labelEn": "Hardcover",
+      "pageMultiple": 2, "minPages": 4, "maxPages": 512,
+      "note": "두꺼운 표지와 각진 책등. 3D 표지 두께를 별도로 설정해요."
+    },
+    {
+      "id": "round_hardcover", "label": "환양장", "labelEn": "Round spine",
+      "pageMultiple": 2, "minPages": 4, "maxPages": 512,
+      "note": "둥근 책등과 하드커버를 표현해요."
+    },
+    {
+      "id": "wire", "label": "와이어 제본", "labelEn": "Wire-O",
+      "pageMultiple": 2, "minPages": 4, "maxPages": 512,
+      "note": "이중 고리와 타공. 360도 뒤로 넘길 수 있어요."
+    },
+    {
       "id": "saddle_stitch",
       "label": "중철 제본",
       "labelEn": "Saddle stitch",
       "pageMultiple": 4,
       "minPages": 4,
-      "maxPages": 48,
+      "maxPages": 64,
       "note": "가운데 스테이플. 페이지 수는 4의 배수. 얇은 책자·브로슈어."
     },
     {
@@ -53,7 +68,7 @@
       "labelEn": "Perfect bound",
       "pageMultiple": 2,
       "minPages": 8,
-      "maxPages": 64,
+      "maxPages": 512,
       "note": "등 풀칠. 페이지 많은 브로슈어·카탈로그에 적합."
     },
     {
@@ -62,7 +77,7 @@
       "labelEn": "Spiral / wire-o",
       "pageMultiple": 2,
       "minPages": 4,
-      "maxPages": 64,
+      "maxPages": 512,
       "note": "완전히 펼쳐지는 안내서·워크북."
     }
   ],
@@ -353,9 +368,9 @@
       "aliases": ["프랑스 접지", "크로스 폴드"],
       "labelEn": "French fold / Cross fold",
       "panelCount": 4,
-      "totalSides": 4,
+      "totalSides": 8,
       "foldCount": 2,
-      "phase": "later",
+      "phase": "mvp",
       "algorithm": "cross_half",
       "innerNarrow": false,
       "description": "가로 반 + 세로 반. 카드·초대장형. 일반 리플렛 단수와 구조가 다름.",
@@ -544,7 +559,7 @@
     ]
   },
 
-  "bookletPagePresets": [4, 8, 12, 16, 20, 24, 32, 40, 48],
+  "bookletPagePresets": [4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 96, 128, 160, 192, 224, 256, 320, 384, 448, 512],
 
   "ui": {
     "sizeSelectOrder": ["a4", "b5_jis", "a5", "a3", "b5_iso", "a6", "a2", "b4_iso", "b6_iso", "letter", "dl_finished", "custom"],

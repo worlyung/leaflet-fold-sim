@@ -2,24 +2,22 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 echo.
-echo  리플렛 접지 시뮬레이터
-echo  http://127.0.0.1:8765
+echo  인쇄물 · 포토존 3D 스튜디오
+echo  사용 가능한 로컬 주소를 찾아 실행합니다.
 echo  종료: Ctrl+C
 echo.
-where npx >nul 2>&1 && (
-  start "" "http://127.0.0.1:8765"
-  npx --yes serve -l 8765
-  exit /b
-)
 where py >nul 2>&1 && (
-  start "" "http://127.0.0.1:8765"
-  py -m http.server 8765
+  py scripts\serve.py
   exit /b
 )
 where python >nul 2>&1 && (
-  start "" "http://127.0.0.1:8765"
-  python -m http.server 8765
+  python scripts\serve.py
   exit /b
 )
-echo [오류] Python 또는 Node.js(npx)가 필요합니다.
+where npx >nul 2>&1 && (
+  echo 브라우저에서 아래 서버가 표시하는 Local 주소를 열어 주세요.
+  npx --yes serve --listen tcp://127.0.0.1:8871
+  exit /b
+)
+echo [오류] Python 또는 Node.js가 필요합니다.
 pause

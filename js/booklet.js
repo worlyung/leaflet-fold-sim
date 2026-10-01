@@ -3,8 +3,9 @@
  */
 
 /** Recommend page counts for binding type. */
+export const bookPageLimit = (bindingId) => bindingId === "saddle_stitch" ? 64 : 512;
 export function normalizePageCount(n, bindingId) {
-  let count = Math.max(2, Math.min(64, Math.floor(Number(n) || 8)));
+  let count = Math.max(2, Math.min(bookPageLimit(bindingId), Math.floor(Number(n) || 8)));
   if (bindingId === "saddle_stitch") {
     // 중철: 보통 4의 배수 (한 장이 4페이지)
     if (count % 4 !== 0) count = Math.ceil(count / 4) * 4;
@@ -14,6 +15,21 @@ export function normalizePageCount(n, bindingId) {
     if (count % 2 !== 0) count += 1;
   }
   return count;
+}
+
+/** Keep covers at the ends even when saddle pagination adds blank interior pages. */
+export function assembleBookPages(images, includesCovers, binding) {
+  if (!images.length) throw new Error("불러올 페이지가 없어요.");
+  const count = images.length + (includesCovers ? 0 : 2);
+  if (count > bookPageLimit(binding)) throw new Error(`표지를 포함해 최대 ${bookPageLimit(binding)}면까지 지원해요.`);
+  const n = normalizePageCount(Math.max(4, count), binding);
+  const pages = Array(n).fill(null);
+  if (includesCovers) {
+    pages[0] = images[0];
+    if (images.length > 1) pages[n - 1] = images[images.length - 1];
+    images.slice(1, -1).forEach((img, i) => { pages[i + 1] = img; });
+  } else images.forEach((img, i) => { pages[i + 1] = img; });
+  return pages;
 }
 
 /**

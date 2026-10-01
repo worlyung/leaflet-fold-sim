@@ -16,6 +16,8 @@ desktop.ini
 # env / secrets
 .env
 .env.*
+credentials.json
+token.json
 
 # node (if any)
 node_modules/

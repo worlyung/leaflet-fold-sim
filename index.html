@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>리플렛 · 책자 시뮬레이터</title>
+    <title>인쇄물 · 포토존 3D 스튜디오</title>
     <link rel="stylesheet" href="./css/app.css" />
     <script type="importmap">
       {
@@ -18,21 +18,26 @@
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <h1>리플렛 · 책자 시뮬레이터</h1>
-          <span>접지 리플렛 + 다페이지 브로슈어 · 내부 확인용</span>
+          <h1>인쇄물 · 포토존 3D 스튜디오</h1>
+          <span>디자인을 입히고, 돌려보고, 펼쳐보세요</span>
         </div>
         <div class="topbar-meta">
           <div class="mode-toggle" id="modeToggle" role="tablist" aria-label="제품 유형">
-            <button type="button" data-mode="fold" class="active" role="tab" aria-selected="true">접지 리플렛</button>
-            <button type="button" data-mode="booklet" role="tab" aria-selected="false">책자 · 브로슈어</button>
+            <button type="button" data-mode="poster" role="tab" aria-selected="false">포스터</button>
+            <button type="button" data-mode="fold" class="active" role="tab" aria-selected="true">리플렛</button>
+            <button type="button" data-mode="booklet" role="tab" aria-selected="false">책</button>
+            <button type="button" data-mode="photozone" role="tab" aria-selected="false">트러스 포토존</button>
           </div>
           <button type="button" id="btnDemoImages" title="fixtures 샘플 이미지">데모 이미지</button>
-          <span class="badge mvp">v1.3</span>
+          <span class="badge mvp">3D</span>
           <span id="presetVer">presets</span>
         </div>
       </header>
 
       <aside class="sidebar">
+        <section class="section" id="leafletTypePanel">
+          <div class="field"><label for="leafletType">리플렛 형태</label><select id="leafletType"><option value="fold">접지형</option><option value="brochure">책자형 (중철)</option></select></div>
+        </section>
         <section class="section">
           <h2 id="statsTitle">정보</h2>
           <div class="stats" id="stats"></div>
@@ -62,18 +67,19 @@
               <select id="foldSelect"></select>
             </div>
             <div class="field">
-              <label for="orientSelect">방향</label>
+              <label for="orientSelect">펼친 용지 방향</label>
               <select id="orientSelect">
                 <option value="portrait">세로형</option>
                 <option value="landscape">가로형</option>
               </select>
             </div>
             <div class="field">
-              <label for="axisSelect">접는 축</label>
+              <label for="axisSelect">패널 배치 · 접는 방향</label>
               <select id="axisSelect">
-                <option value="vertical">세로 접기 (좌우 패널)</option>
-                <option value="horizontal">가로 접기 (상하 패널)</option>
+                <option value="vertical">좌우 패널 · 왼쪽/오른쪽으로 접기</option>
+                <option value="horizontal">상하 패널 · 위/아래로 접기</option>
               </select>
+              <p class="hint">세로형·가로형 용지 모두 좌우·상하 패널을 선택할 수 있어요. 십자 접지는 두 방향을 함께 접어요.</p>
             </div>
             <div class="field" id="deltaField">
               <label for="deltaRange">안쪽 면 축소 (C·대문·롤)</label>
@@ -119,25 +125,25 @@
             <h2>이미지 (접지)</h2>
             <div class="field">
               <label class="file-btn" id="frontFileLabel">
-                앞면 이미지 선택
+                종이 A면 이미지 선택
                 <input id="frontFile" type="file" accept="image/*" />
               </label>
             </div>
             <div class="field">
               <label class="file-btn" id="backFileLabel">
-                뒷면 이미지 선택
+                종이 B면 이미지 선택
                 <input id="backFile" type="file" accept="image/*" />
               </label>
             </div>
             <div class="field">
               <label>패널별 덮어쓰기 (선택)</label>
               <div class="panel-uploads" id="panelUploads"></div>
-              <p class="hint">앞·뒤 전개 이미지를 패널 단위로 잘라 쓰거나, 패널만 따로 올릴 수 있습니다.</p>
+              <p class="hint">A/B는 펼친 종이의 양면이에요. 번호는 A면 기준 같은 종이 패널을 가리켜요. B면은 좌우로 뒤집어 본 모습이며, 완성 표지는 접지 방식마다 달라요.</p>
             </div>
             <button type="button" id="clearImages">이미지 모두 지우기</button>
             <div class="field" style="margin-top:0.55rem">
               <label class="file-btn" id="foldPdfLabel">
-                PDF에서 앞·뒤 추출 (1·2쪽)
+                PDF에서 A/B면 추출 (1·2쪽)
                 <input id="foldPdf" type="file" accept="application/pdf" />
               </label>
             </div>
@@ -259,8 +265,8 @@
           </div>
           <span class="spacer"></span>
           <div class="side-toggle segment" id="sideToggle" title="접힌 상태 표지 면">
-            <button type="button" data-side="front" class="active" aria-pressed="true">앞</button>
-            <button type="button" data-side="back" aria-pressed="false">뒤</button>
+            <button type="button" data-side="front" class="active" aria-pressed="true">앞표지</button>
+            <button type="button" data-side="back" aria-pressed="false">뒤표지</button>
           </div>
         </div>
 

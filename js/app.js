@@ -4,11 +4,15 @@ import {
   mmToScale,
 } from "./panel-math.js";
 import { Leaflet3DViewer } from "./viewer-3d.js";
+import { foldCovers, foldFaceLabel } from "./fold-faces.js";
+import { initStudioUI } from "./studio-ui.js";
 import {
   normalizePageCount,
+  bookPageLimit,
   buildSpreads,
   estimateSheets,
   pageLabel,
+  assembleBookPages,
 } from "./booklet.js";
 import { createPageCurlBook } from "./page-curl.js";
 import {
@@ -44,12 +48,12 @@ const state = {
   // fold
   sizeId: "a4",
   foldId: "half",
-  orientation: "portrait",
+  orientation: "landscape",
   foldAxis: "vertical",
   deltaMm: 2,
   customW: 210,
   customH: 297,
-  viewMode: "flat",
+  viewMode: "orbit3d",
   showSide: "front",
   foldAmount: 0.65,
   frontImage: null,
@@ -63,7 +67,8 @@ const state = {
   bookletCustomW: 148,
   bookletCustomH: 210,
   bookletOrient: "portrait",
-  bindingId: "saddle_stitch",
+  bindingId: "hardcover",
+  brochure: false,
   pageCount: 12,
   /** @type {(HTMLImageElement|null)[]} */
   pageImages: [],
@@ -77,6 +82,7 @@ const state = {
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+let studio;
 
 // 선택 상태를 시각(.active)과 보조기술(aria) 양쪽에 동시에 반영한다.
 const setActive = (el, on) => {
@@ -101,13 +107,14 @@ async function main() {
   }
 
   applyDefaults();
+  studio = initStudioUI({ state, renderAll, loadImageFile, showBanner, getBookletPageSize, rebuildBookletPageList });
   bindUI();
   populateSelects();
   rebuildPanelUploadSlots();
   rebuildBookletPageList();
   setProductMode(state.productMode, true);
   showBanner(
-    "접지 리플렛 · 책자/브로슈어 · 임포지션 · PDF · 내보내기 지원. «데모 이미지»로 fixtures 샘플을 불러올 수 있습니다.",
+    "유형을 선택하고 이미지를 넣어 보세요. 드래그로 회전, 휠로 확대, 오른쪽 드래그로 이동해요. 입력은 현재 탭에만 유지돼요.",
     false
   );
 }
@@ -130,6 +137,11 @@ async function loadDemoImages() {
   };
 
   try {
+    if (["poster", "photozone"].includes(state.productMode)) {
+      await studio.demo(load);
+      showBanner("앞·뒷면 데모 이미지를 적용했어요.", false);
+      return;
+    }
     if (state.productMode === "fold") {
       let front;
       let back;
@@ -143,9 +155,9 @@ async function loadDemoImages() {
       state.frontImage = front;
       state.backImage = back;
       $("#frontFileLabel").classList.add("has-file");
-      $("#frontFileLabel").textContent = "demo front";
+      $("#frontFileLabel").firstChild.textContent = "demo front";
       $("#backFileLabel").classList.add("has-file");
-      $("#backFileLabel").textContent = "demo back";
+      $("#backFileLabel").firstChild.textContent = "demo back";
       showBanner("접지 데모 이미지 로드 (fixtures)", false);
     } else {
       const n = state.pageCount;
@@ -183,7 +195,7 @@ function applyDefaults() {
   const b = d.booklet || {};
   state.bookletSizeId = b.sizeId || "a5";
   state.pageCount = b.pageCount || 12;
-  state.bindingId = b.bindingId || "saddle_stitch";
+  state.bindingId = b.bindingId || "hardcover";
   state.bookletOrient = b.orientation || "portrait";
   ensurePageArray();
 }
@@ -192,12 +204,21 @@ function ensurePageArray() {
   const n = state.pageCount;
   if (state.pageImages.length !== n) {
     const next = Array(n).fill(null);
-    for (let i = 0; i < Math.min(n, state.pageImages.length); i++) {
+    for (let i = 0; i < Math.min(n - 1, state.pageImages.length - 1); i++) {
       next[i] = state.pageImages[i];
     }
+    next[n - 1] = state.pageImages[state.pageImages.length - 1] || null;
     state.pageImages = next;
   }
 }
+
+function bookImage(index) {
+  if (index === 0 && state.book?.front) return state.book.front;
+  if (index === state.pageCount - 1 && state.book?.back) return state.book.back;
+  return state.pageImages[index];
+}
+
+function bookImages() { return Array.from({ length: state.pageCount }, (_, i) => bookImage(i)); }
 
 function showBanner(msg, isError) {
   const el = $("#banner");
@@ -440,7 +461,7 @@ function refillPageCountSelect() {
   const binding = state.presets.bindings?.find((b) => b.id === state.bindingId);
   const presets = state.presets.bookletPagePresets || [4, 8, 12, 16, 20, 24, 32];
   const min = binding?.minPages || 4;
-  const max = binding?.maxPages || 48;
+  const max = bookPageLimit(state.bindingId);
   const mult = binding?.pageMultiple || 2;
   sel.innerHTML = "";
   const set = new Set(presets.filter((n) => n >= min && n <= max && n % mult === 0));
@@ -475,11 +496,37 @@ function updateDeltaVisibility() {
   $("#deltaField").hidden = !fold?.innerNarrow;
 }
 
-function setProductMode(mode, silent) {
+const bookDocuments = {};
+const bookDocumentKeys = ["bookletSizeId", "bookletCustomW", "bookletCustomH", "bookletOrient", "bindingId", "pageCount", "pageImages", "spreadIndex", "parentSheetId", "parentCustomW", "parentCustomH", "book"];
+function setProductMode(mode, silent, brochure = false) {
+  if (state.productMode === "booklet") {
+    bookDocuments[state.brochure ? "brochure" : "book"] = Object.fromEntries(bookDocumentKeys.map(k => [k, k === "book" ? { ...state.book } : state[k]]));
+  }
+  if (mode === "booklet") {
+    const saved = bookDocuments[brochure ? "brochure" : "book"];
+    const target = saved || { bookletSizeId: "a5", bookletCustomW: 148, bookletCustomH: 210,
+      bookletOrient: "portrait", parentSheetId: "auto", parentCustomW: 297, parentCustomH: 420, pageCount: 12,
+      pageImages: Array(12).fill(null), spreadIndex: 0, bindingId: brochure ? "saddle_stitch" : "hardcover",
+      book: { paperThickness: 0.12, coverThickness: brochure ? 0.25 : 1.5, open: 115, turn: 0.4, front: null, back: null, spine: null } };
+    const { book, ...settings } = target;
+    Object.assign(state, settings); Object.assign(state.book, book);
+    state.brochure = brochure;
+    populateSelects(); rebuildBookletPageList();
+    state.book3dViewer?.dispose(); state.book3dViewer = null;
+    for (const [id, key] of [["bookPaperThickness", "paperThickness"], ["bookCoverThickness", "coverThickness"]]) $("#" + id).value = state.book[key];
+    for (const [id, key] of [["bookFront", "front"], ["bookBack", "back"], ["bookSpine", "spine"]]) {
+      $("#" + id).value = "";
+      $("#" + id + "Status").textContent = state.book[key] ? "이미지 적용됨" : "이미지 없음";
+    }
+  } else state.brochure = false;
   state.productMode = mode;
+  $(".sidebar").scrollTop = 0;
   $$("#modeToggle [data-mode]").forEach((b) =>
-    setActive(b, b.dataset.mode === mode)
+    setActive(b, b.dataset.mode === (brochure ? "fold" : mode))
   );
+  $("#leafletTypePanel").hidden = mode !== "fold" && !brochure;
+  $("#leafletType").value = brochure ? "brochure" : "fold";
+  $("#bindingSelect").disabled = brochure;
   $("#panelFold").hidden = mode !== "fold";
   $("#panelBooklet").hidden = mode !== "booklet";
   $("#toolbarFold").hidden = mode !== "fold";
@@ -488,6 +535,8 @@ function setProductMode(mode, silent) {
   $("#foldAmountControl").hidden = mode === "booklet" && state.viewMode !== "book3d";
   $("#bookletNav").hidden = mode !== "booklet";
 
+  state.viewMode = mode === "fold" ? "orbit3d" : mode === "booklet" ? "book3d" : "studio";
+
   if (mode === "fold") {
     if (["spread", "flipbook", "thumbs", "book3d"].includes(state.viewMode)) {
       state.viewMode = "flat";
@@ -495,22 +544,29 @@ function setProductMode(mode, silent) {
     $("#statsTitle").textContent = "패널 정보";
     if (!silent)
       showBanner("접지 리플렛 모드 — 전개/접힘/3D로 확인", false);
-  } else {
+  } else if (mode === "booklet") {
     if (["flat", "folded", "flip", "open", "orbit3d"].includes(state.viewMode)) {
       state.viewMode = "flipbook";
     }
     $("#statsTitle").textContent = "책자 정보";
     if (!silent)
       showBanner(
-        "책자 · 브로슈어 모드 — 스프레드/플립북(곡선 넘김)/전체 페이지",
+        brochure ? "책자형 리플렛 · 중철 — 페이지 이미지 또는 PDF를 넣어 보세요. 4페이지는 종이 한 장을 접은 형태예요." : "표지·책등을 따로 넣고 제본과 펼침을 확인해요. 페이지 수는 표지를 포함해요.",
         false
       );
+  } else if (!silent) {
+    showBanner(mode === "poster" ? "앞·뒷면 이미지를 넣고 포스터를 돌려보세요." : "트러스와 출력물의 앞뒤를 확인해요. 출력물을 숨기면 뒷구조가 잘 보여요.", false);
   }
   updateViewModeButtons();
   renderAll();
 }
 
 function bindUI() {
+  // Keep the native picker clickable and allow choosing the same file again.
+  document.addEventListener("click", (e) => {
+    if (e.target instanceof HTMLInputElement && e.target.type === "file") e.target.value = "";
+  }, true);
+  $("#leafletType").addEventListener("change", e => setProductMode(e.target.value === "brochure" ? "booklet" : "fold", false, e.target.value === "brochure"));
   $$("#modeToggle [data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => setProductMode(btn.dataset.mode));
   });
@@ -635,16 +691,16 @@ function bindUI() {
     if (!file) return;
     try {
       showBanner("PDF 읽는 중…", false);
-      const imgs = await pdfToImages(file, { maxPages: 2, scale: 1.4 });
+      const imgs = await pdfToImages(file, { maxPages: 2, scale: 1.4, allowTruncate: true });
       if (imgs[0]) {
         state.frontImage = imgs[0];
         $("#frontFileLabel").classList.add("has-file");
-        $("#frontFileLabel").textContent = "PDF p1";
+        $("#frontFileLabel").firstChild.textContent = "PDF p1";
       }
       if (imgs[1]) {
         state.backImage = imgs[1];
         $("#backFileLabel").classList.add("has-file");
-        $("#backFileLabel").textContent = "PDF p2";
+        $("#backFileLabel").firstChild.textContent = "PDF p2";
       }
       $("#foldPdfLabel")?.classList.add("has-file");
       showBanner(`PDF에서 ${imgs.length}쪽 추출 (앞·뒤)`, false);
@@ -657,32 +713,24 @@ function bindUI() {
   $("#bookletPdf")?.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const includesCovers = $("#bookImportMode").value === "covers";
+    e.target.disabled = true;
     try {
       const prog = $("#pdfProgress");
       if (prog) prog.textContent = "PDF 변환 중…";
       showBanner("PDF 페이지 분리 중…", false);
       const imgs = await pdfToImages(file, {
-        maxPages: 64,
+        maxPages: bookPageLimit(state.bindingId) - (includesCovers ? 0 : 2),
         scale: 1.35,
         onProgress: (done, total) => {
           if (prog) prog.textContent = `${done} / ${total} 쪽 변환…`;
         },
       });
-      // auto page count to fit (respect binding multiple)
-      let n = imgs.length;
-      if (state.bindingId === "saddle_stitch") {
-        n = normalizePageCount(Math.max(4, n), "saddle_stitch");
-      } else {
-        n = normalizePageCount(Math.max(2, n), state.bindingId);
-      }
-      // if PDF has fewer pages than normalized, keep normalized empties
-      if (imgs.length > n) n = normalizePageCount(imgs.length, state.bindingId);
-      state.pageCount = n;
+      const imported = assembleBookPages(imgs, includesCovers, state.bindingId);
+      state.pageCount = imported.length;
+      state.pageImages = imported;
       refillPageCountSelect();
       ensurePageArray();
-      for (let i = 0; i < state.pageCount; i++) {
-        state.pageImages[i] = imgs[i] || null;
-      }
       rebuildBookletPageList();
       $("#bookletPdfLabel")?.classList.add("has-file");
       if (prog) prog.textContent = `${imgs.length}쪽 적용 (책 ${state.pageCount}p)`;
@@ -693,6 +741,9 @@ function bindUI() {
       showBanner(`PDF 실패: ${err.message}`, true);
       const prog = $("#pdfProgress");
       if (prog) prog.textContent = err.message;
+    } finally {
+      e.target.value = "";
+      e.target.disabled = false;
     }
   });
 
@@ -727,9 +778,10 @@ function bindUI() {
     state.backImage = null;
     state.panelImages = {};
     $("#frontFileLabel").classList.remove("has-file");
-    $("#frontFileLabel").textContent = "앞면 이미지 선택";
+    $("#frontFileLabel").firstChild.textContent = "종이 A면 이미지 선택";
     $("#backFileLabel").classList.remove("has-file");
-    $("#backFileLabel").textContent = "뒷면 이미지 선택";
+    $("#backFileLabel").firstChild.textContent = "종이 B면 이미지 선택";
+    $("#frontFile").value = ""; $("#backFile").value = "";
     rebuildPanelUploadSlots();
     renderAll();
   });
@@ -742,7 +794,12 @@ function bindUI() {
     renderAll();
   });
   $("#bindingSelect").addEventListener("change", (e) => {
+    const wasHard = ["hardcover", "round_hardcover"].includes(state.bindingId);
     state.bindingId = e.target.value;
+    if (wasHard !== ["hardcover", "round_hardcover"].includes(state.bindingId)) {
+      state.book.coverThickness = wasHard ? 0.25 : 1.5;
+      $("#bookCoverThickness").value = state.book.coverThickness;
+    }
     updateBindingNote();
     state.pageCount = normalizePageCount(state.pageCount, state.bindingId);
     refillPageCountSelect();
@@ -798,11 +855,14 @@ function bindUI() {
     files.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true })
     );
+    try {
+    const max = bookPageLimit(state.bindingId) - ($("#bookImportMode").value === "covers" ? 0 : 2);
+    if (files.length > max) throw new Error(`최대 ${max}장까지 넣을 수 있어요.`);
     const imgs = await Promise.all(files.map(loadImageFile));
-    ensurePageArray();
-    for (let i = 0; i < state.pageCount; i++) {
-      state.pageImages[i] = imgs[i] || state.pageImages[i] || null;
-    }
+    state.pageImages = assembleBookPages(imgs, $("#bookImportMode").value === "covers", state.bindingId);
+    state.pageCount = state.pageImages.length;
+    refillPageCountSelect();
+    state.spreadIndex = 0;
     $("#bookletBulkLabel").classList.add("has-file");
     $("#bookletBulkLabel").childNodes[0].textContent = `${Math.min(
       imgs.length,
@@ -810,10 +870,14 @@ function bindUI() {
     )}장 적용됨 · 다시 올리기`;
     rebuildBookletPageList();
     renderAll();
+    } catch (err) { showBanner(`이미지 불러오기 실패: ${err.message}`, true); }
+    finally { e.target.value = ""; }
   });
 
   $("#clearBookletImages").addEventListener("click", () => {
     state.pageImages = Array(state.pageCount).fill(null);
+    $("#bookletBulk").value = ""; $("#bookletPdf").value = "";
+    $("#pdfProgress").textContent = "";
     $("#bookletBulkLabel").classList.remove("has-file");
     $("#bookletBulkLabel").childNodes[0].textContent =
       "여러 장 한 번에 올리기 (순서대로 1→N)";
@@ -845,15 +909,17 @@ function bindFile(inputSel, which) {
   input.addEventListener("change", async () => {
     const file = input.files?.[0];
     if (!file) return;
-    const img = await loadImageFile(file);
+    let img;
+    try { img = await loadImageFile(file); }
+    catch { showBanner("이미지를 읽지 못했어요. 다른 이미지 파일을 선택해 주세요.", true); return; }
     if (which === "front") {
       state.frontImage = img;
       $("#frontFileLabel").classList.add("has-file");
-      $("#frontFileLabel").textContent = file.name;
+      $("#frontFileLabel").firstChild.textContent = file.name;
     } else {
       state.backImage = img;
       $("#backFileLabel").classList.add("has-file");
-      $("#backFileLabel").textContent = file.name;
+      $("#backFileLabel").firstChild.textContent = file.name;
     }
     renderAll();
   });
@@ -861,11 +927,15 @@ function bindFile(inputSel, which) {
 
 function loadImageFile(file) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("파일 읽기 실패"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("지원하지 않는 이미지예요."));
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -880,7 +950,7 @@ function rebuildPanelUploadSlots() {
       const row = document.createElement("div");
       row.className = "panel-upload-row";
       const span = document.createElement("span");
-      span.textContent = `${side === "front" ? "앞" : "뒤"} P${i + 1}`;
+      span.textContent = foldFaceLabel(state.foldId, side, i);
       const label = document.createElement("label");
       label.className = "file-btn";
       label.style.minHeight = "1.9rem";
@@ -890,11 +960,13 @@ function rebuildPanelUploadSlots() {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
+      input.setAttribute("aria-label", `${foldFaceLabel(state.foldId, side, i)} 이미지 선택`);
       input.addEventListener("change", async () => {
         const f = input.files?.[0];
         if (!f) return;
-        state.panelImages[key] = await loadImageFile(f);
-        label.textContent = "적용됨";
+        try { state.panelImages[key] = await loadImageFile(f); }
+        catch { showBanner("이미지를 읽지 못했어요. PNG 또는 JPG 파일을 선택해 주세요.", true); return; }
+        label.firstChild.textContent = "적용됨";
         label.classList.add("has-file");
         renderAll();
       });
@@ -919,17 +991,21 @@ function rebuildBookletPageList() {
     label.className = "file-btn";
     label.style.minHeight = "1.9rem";
     label.style.fontSize = "0.72rem";
-    label.textContent = state.pageImages[i] ? "교체" : "없음";
-    if (state.pageImages[i]) label.classList.add("has-file");
+    label.textContent = bookImage(i) ? "교체" : "없음";
+    if (bookImage(i)) label.classList.add("has-file");
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
+    input.setAttribute("aria-label", `${pageLabel(i, state.pageCount)} 페이지 이미지 선택`);
     const idx = i;
     input.addEventListener("change", async () => {
       const f = input.files?.[0];
       if (!f) return;
-      state.pageImages[idx] = await loadImageFile(f);
-      label.textContent = "적용됨";
+      try { state.pageImages[idx] = await loadImageFile(f); }
+      catch { showBanner("이미지를 읽지 못했어요. PNG 또는 JPG 파일을 선택해 주세요.", true); return; }
+      if (idx === 0) { state.book.front = null; $("#bookFrontStatus").textContent = "페이지 목록 이미지 사용"; }
+      if (idx === state.pageCount - 1) { state.book.back = null; $("#bookBackStatus").textContent = "페이지 목록 이미지 사용"; }
+      label.firstChild.textContent = "적용됨";
       label.classList.add("has-file");
       renderAll();
     });
@@ -940,6 +1016,7 @@ function rebuildBookletPageList() {
 }
 
 function updateViewModeButtons() {
+  if (["poster", "photozone"].includes(state.productMode)) return;
   if (state.productMode === "fold") {
     const fold = getFold();
     const allowed = new Set(fold?.viewModes || ["flat", "folded", "orbit3d"]);
@@ -1028,7 +1105,7 @@ function exportImposition(kind) {
       const canvas = renderImpositionCanvas({
         pageSize: page,
         imposition: imp,
-        pageImages: state.pageImages,
+        pageImages: bookImages(),
         pageCount: state.pageCount,
       });
       downloadCanvasPng(canvas, `imposition-${state.pageCount}p.png`);
@@ -1037,7 +1114,7 @@ function exportImposition(kind) {
       const canvases = renderImpositionSheetCanvases({
         pageSize: page,
         imposition: imp,
-        pageImages: state.pageImages,
+        pageImages: bookImages(),
         pageCount: state.pageCount,
       });
       downloadCanvasesPdf(canvases, `imposition-${state.pageCount}p.pdf`).then(
@@ -1055,6 +1132,12 @@ function stageBox() {
 }
 
 function renderAll() {
+  $("#sideToggle").hidden = state.productMode !== "fold" || state.viewMode !== "folded";
+  studio?.sync();
+  if (["poster", "photozone"].includes(state.productMode)) {
+    try { studio.renderExtra(); } catch (err) { showBanner(`3D 표시 실패: ${err.message}`, true); }
+    return;
+  }
   if (state.productMode === "booklet") {
     renderBooklet();
     return;
@@ -1093,6 +1176,8 @@ function updateFoldStats(data) {
     <div><strong>접지</strong> ${fold.label} · ${fold.panelCount}패널 · ${fold.totalSides}P</div>
     <div><strong>완성(대략)</strong> ${finished.widthMm} × ${finished.heightMm} mm</div>
     <div><strong>알고리즘</strong> ${fold.algorithm}</div>
+    <div>${foldCovers(fold.id).map(f => foldFaceLabel(fold.id, f.side, f.index)).join(" / ")}</div>
+    <div>표지는 현재 시뮬레이터의 접는 순서 기준이에요.</div>
   `;
   $("#widthChips").innerHTML = widths
     .map((w, i) => `<span class="chip">P${i + 1}: ${w}mm</span>`)
@@ -1114,24 +1199,15 @@ function panelBackground(side, index, panels, sheet) {
   const img = side === "front" ? state.frontImage : state.backImage;
   if (!img) return { has: false, style: {} };
   const p = panels[index];
-  if (state.foldAxis === "vertical") {
-    const sizePct = sheet.widthMm <= 0 ? 100 : (sheet.widthMm / p.width) * 100;
-    return {
-      has: true,
-      style: {
-        backgroundImage: `url(${img.src})`,
-        backgroundSize: `${sizePct}% 100%`,
-        backgroundPosition: `${(-p.x / p.width) * 100}% 0%`,
-      },
-    };
-  }
-  const sizePct = sheet.heightMm <= 0 ? 100 : (sheet.heightMm / p.height) * 100;
+  const x = side === "back" ? sheet.widthMm - p.x - p.width : p.x;
+  const xp = sheet.widthMm === p.width ? 0 : x / (sheet.widthMm - p.width) * 100;
+  const yp = sheet.heightMm === p.height ? 0 : p.y / (sheet.heightMm - p.height) * 100;
   return {
     has: true,
     style: {
       backgroundImage: `url(${img.src})`,
-      backgroundSize: `100% ${sizePct}%`,
-      backgroundPosition: `0% ${(-p.y / p.height) * 100}%`,
+      backgroundSize: `${sheet.widthMm / p.width * 100}% ${sheet.heightMm / p.height * 100}%`,
+      backgroundPosition: `${xp}% ${yp}%`,
     },
   };
 }
@@ -1153,25 +1229,22 @@ function renderFlat(data) {
     sheetEl.className = "sheet";
     sheetEl.style.width = `${sheet.widthMm * scale}px`;
     sheetEl.style.height = `${sheet.heightMm * scale}px`;
-    if (state.foldAxis === "horizontal") sheetEl.style.flexDirection = "column";
+    sheetEl.style.position = "relative";
     panels.forEach((p, i) => {
       const elp = document.createElement("div");
       elp.className = "panel";
-      if (state.foldAxis === "vertical") {
-        elp.style.width = `${p.width * scale}px`;
-        elp.style.height = "100%";
-      } else {
-        elp.style.width = "100%";
-        elp.style.height = `${p.height * scale}px`;
-        elp.style.borderRight = "none";
-        elp.style.borderBottom = "1px dashed rgba(240,180,41,0.85)";
-      }
+      elp.style.position = "absolute";
+      elp.style.left = `${(side === "back" ? sheet.widthMm - p.x - p.width : p.x) * scale}px`;
+      elp.style.top = `${p.y * scale}px`;
+      elp.style.width = `${p.width * scale}px`;
+      elp.style.height = `${p.height * scale}px`;
+      elp.style.border = "1px dashed rgba(240,180,41,0.6)";
       const bg = panelBackground(side, i, panels, sheet);
       if (bg.has) {
         elp.classList.add("has-image");
         Object.assign(elp.style, bg.style);
       }
-      elp.innerHTML = `<span class="idx">${side === "front" ? "F" : "B"}${i + 1}</span><div class="placeholder">패널 ${i + 1}<br>${(
+      elp.innerHTML = `<span class="idx">${foldFaceLabel(state.foldId, side, i)}</span><div class="placeholder">패널 ${i + 1}<br>${(
         state.foldAxis === "vertical" ? p.width : p.height
       ).toFixed(1)} mm</div>`;
       sheetEl.appendChild(elp);
@@ -1179,8 +1252,8 @@ function renderFlat(data) {
     wrap.append(lab, sheetEl);
     return wrap;
   };
-  host.appendChild(makeSheet("front", "앞면 전개도"));
-  host.appendChild(makeSheet("back", "뒷면 전개도"));
+  host.appendChild(makeSheet("front", "종이 A면 전개도"));
+  host.appendChild(makeSheet("back", "종이 B면 전개도 · 좌우로 뒤집어 본 모습"));
 }
 
 function renderFolded(data) {
@@ -1193,18 +1266,10 @@ function renderFolded(data) {
   card.className = "finished-card";
   card.style.width = `${finished.widthMm * scale}px`;
   card.style.height = `${finished.heightMm * scale}px`;
-  const coverKey = `${state.showSide}-0`;
-  const img = state.showSide === "front" ? state.frontImage : state.backImage;
-  if (state.panelImages[coverKey]) {
-    card.style.backgroundImage = `url(${state.panelImages[coverKey].src})`;
-    card.style.backgroundSize = "cover";
-  } else if (img && state.foldAxis === "vertical") {
-    const p = panels[0];
-    card.style.backgroundImage = `url(${img.src})`;
-    card.style.backgroundSize = `${(sheet.widthMm / p.width) * 100}% 100%`;
-  } else {
-    card.innerHTML = `<div class="placeholder">접힌 상태 표지<br>${finished.widthMm} × ${finished.heightMm} mm</div>`;
-  }
+  const cover = foldCovers(state.foldId)[state.showSide === "front" ? 0 : 1];
+  const bg = panelBackground(cover.side, cover.index, panels, sheet);
+  if (bg.has) Object.assign(card.style, bg.style);
+  else card.innerHTML = `<div class="placeholder">${foldFaceLabel(state.foldId, cover.side, cover.index)}<br>${finished.widthMm} × ${finished.heightMm} mm</div>`;
   const dims = document.createElement("div");
   dims.className = "finished-dims";
   dims.textContent = `완성 크기(대략) ${finished.widthMm} × ${finished.heightMm} mm`;
@@ -1325,8 +1390,6 @@ function applyFoldAmountOnly() {
       const data = getSheetAndPanels();
       if (data) renderOpen(data);
     }
-  } else if (state.viewMode === "book3d" && state.book3dViewer) {
-    state.book3dViewer.applyFold?.(state.foldAmount);
   }
 }
 
@@ -1336,12 +1399,12 @@ function getBookletSpreadsForCurl() {
   const spreads = buildSpreads(state.pageCount);
   return spreads.map((sp) => {
     const leftUrl =
-      sp.left != null && state.pageImages[sp.left]
-        ? state.pageImages[sp.left].src
+      sp.left != null && bookImage(sp.left)
+        ? bookImage(sp.left).src
         : null;
     const rightUrl =
-      sp.right != null && state.pageImages[sp.right]
-        ? state.pageImages[sp.right].src
+      sp.right != null && bookImage(sp.right)
+        ? bookImage(sp.right).src
         : null;
     return {
       leftUrl,
@@ -1355,7 +1418,7 @@ function updateBookletStats() {
   const page = getBookletPageSize();
   const binding = state.presets.bindings?.find((b) => b.id === state.bindingId);
   const est = estimateSheets(state.pageCount, state.bindingId);
-  const filled = state.pageImages.filter(Boolean).length;
+  const filled = bookImages().filter(Boolean).length;
   const spreads = buildSpreads(state.pageCount);
   let parentLine = "";
   if (state.bindingId === "saddle_stitch") {
@@ -1391,7 +1454,7 @@ function renderBooklet() {
   $(`#${map[state.viewMode] || "view-flipbook"}`)?.classList.add("active");
 
   $("#bookletNav").hidden = !["spread", "flipbook"].includes(state.viewMode);
-  $("#foldAmountControl").hidden = state.viewMode !== "book3d";
+  $("#foldAmountControl").hidden = true;
   refreshParentSheetUI();
 
   if (state.viewMode === "spread") renderBookletSpread();
@@ -1564,11 +1627,11 @@ function renderImposition() {
       [side.left, side.right].forEach((pi) => {
         const cell = document.createElement("div");
         cell.className =
-          "spread-page" + (state.pageImages[pi] ? "" : " empty");
+          "spread-page" + (bookImage(pi) ? "" : " empty");
         cell.style.width = `${page.widthMm * scale}px`;
         cell.style.height = `${page.heightMm * scale}px`;
-        if (state.pageImages[pi]) {
-          cell.style.backgroundImage = `url(${state.pageImages[pi].src})`;
+        if (bookImage(pi)) {
+          cell.style.backgroundImage = `url(${bookImage(pi).src})`;
           cell.style.backgroundSize = "cover";
           cell.style.backgroundPosition = "center";
         } else {
@@ -1604,11 +1667,11 @@ function renderBookletSpread() {
 
   const addPage = (pageIdx) => {
     const d = document.createElement("div");
-    d.className = "spread-page" + (pageIdx == null || !state.pageImages[pageIdx] ? " empty" : "");
+    d.className = "spread-page" + (pageIdx == null || !bookImage(pageIdx) ? " empty" : "");
     d.style.width = `${page.widthMm * scale}px`;
     d.style.height = `${page.heightMm * scale}px`;
-    if (pageIdx != null && state.pageImages[pageIdx]) {
-      d.style.backgroundImage = `url(${state.pageImages[pageIdx].src})`;
+    if (pageIdx != null && bookImage(pageIdx)) {
+      d.style.backgroundImage = `url(${bookImage(pageIdx).src})`;
       d.innerHTML = `<span class="pg-num">${pageIdx + 1}</span>`;
     } else if (pageIdx == null) {
       d.textContent = "—";
@@ -1672,8 +1735,8 @@ function renderBookletThumbs() {
     card.className = "thumb-card";
     const img = document.createElement("div");
     img.className = "thumb-img";
-    if (state.pageImages[i]) {
-      img.style.backgroundImage = `url(${state.pageImages[i].src})`;
+    if (bookImage(i)) {
+      img.style.backgroundImage = `url(${bookImage(i).src})`;
       img.textContent = "";
     } else {
       img.textContent = "빈 페이지";
@@ -1699,57 +1762,8 @@ function renderBookletThumbs() {
 }
 
 function renderBooklet3d() {
-  // Reuse Leaflet3DViewer as a simple "open book" of current spread two panels
-  const host = $("#book3dInner");
-  const page = getBookletPageSize();
-  const spreads = buildSpreads(state.pageCount);
-  const sp = spreads[Math.min(state.spreadIndex, spreads.length - 1)];
-  const panels = [];
-  if (sp.left != null) {
-    panels.push({ index: 0, width: page.widthMm, height: page.heightMm, x: 0, y: 0 });
-  }
-  if (sp.right != null) {
-    panels.push({
-      index: panels.length,
-      width: page.widthMm,
-      height: page.heightMm,
-      x: page.widthMm,
-      y: 0,
-    });
-  }
-  if (!panels.length) {
-    panels.push({ index: 0, width: page.widthMm, height: page.heightMm, x: 0, y: 0 });
-  }
-
-  // map page images into panelImages keys
-  const panelImages = {};
-  let pi = 0;
-  if (sp.left != null && state.pageImages[sp.left]) {
-    panelImages[`front-${pi}`] = state.pageImages[sp.left];
-    pi++;
-  }
-  if (sp.right != null && state.pageImages[sp.right]) {
-    panelImages[`front-${pi}`] = state.pageImages[sp.right];
-  }
-
-  if (!state.book3dViewer) {
-    try {
-      state.book3dViewer = new Leaflet3DViewer(host);
-    } catch (e) {
-      host.innerHTML = `<p style="color:#f07178;padding:1rem">3D 로드 실패: ${e.message}</p>`;
-      return;
-    }
-  }
-  state.book3dViewer.resize();
-  state.book3dViewer.build({
-    panels,
-    foldId: "half",
-    foldAxis: "vertical",
-    frontImage: null,
-    backImage: null,
-    panelImages,
-  });
-  state.book3dViewer.applyFold(state.foldAmount);
+  try { studio.renderBook(); }
+  catch (err) { showBanner(`책 3D 표시 실패: ${err.message}`, true); }
 }
 
 main();

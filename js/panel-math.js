@@ -94,14 +94,9 @@ function gateWingsNarrow(L, n, d) {
 }
 
 function rollProgressiveNarrow(L, n, d) {
-  // outer widest; each subsequent -= d; renormalize
-  const raw = [];
-  for (let i = 0; i < n; i++) {
-    raw.push(Math.max(1, 10 + (n - 1 - i) * d));
-  }
-  const sum = raw.reduce((a, b) => a + b, 0);
-  const scaled = raw.map((v) => (v / sum) * L);
-  return fixSum(scaled.map(round2), L);
+  // d is a millimetre difference, not a ratio that scales with sheet size.
+  const delta = n > 1 ? Math.min(d, L / (n * (n - 1))) : 0;
+  return fixSum(Array.from({length:n}, (_,i) => round2(L / n + delta * ((n - 1) / 2 - i))), L);
 }
 
 function round2(x) {
@@ -146,6 +141,12 @@ export function computePanels(sheet, fold, foldAxis, deltaMm) {
   const n = fold.panelCount;
   const algorithm = fold.algorithm || "equal";
 
+  if (algorithm === "cross_half") {
+    return Array.from({ length: 4 }, (_, i) => ({ index: i,
+      x: (i % 2) * widthMm / 2, y: Math.floor(i / 2) * heightMm / 2,
+      width: widthMm / 2, height: heightMm / 2 }));
+  }
+
   if (foldAxis === "horizontal") {
     const heights = computePanelSizes(heightMm, n, algorithm, deltaMm);
     let y = 0;
@@ -170,13 +171,16 @@ export function computePanels(sheet, fold, foldAxis, deltaMm) {
  * Approximate finished (folded) outer size in mm.
  */
 export function approxFinishedSize(sheet, fold, foldAxis, panels) {
+  if (fold.algorithm === "cross_half" || fold.id === "french") {
+    return { widthMm: sheet.widthMm / 2, heightMm: sheet.heightMm / 2 };
+  }
   if (foldAxis === "horizontal") {
     // stacked by height panels — finished height = max panel height (top panel), width full
     const h = Math.max(...panels.map((p) => p.height));
     return { widthMm: sheet.widthMm, heightMm: round2(h) };
   }
   // vertical folds: finished width = first (cover) panel width for C/Z/half
-  const coverW = panels[0]?.width ?? sheet.widthMm / fold.panelCount;
+  const coverW = panels.length ? Math.max(...panels.map((p) => p.width)) : sheet.widthMm / fold.panelCount;
   return { widthMm: round2(coverW), heightMm: sheet.heightMm };
 }
 

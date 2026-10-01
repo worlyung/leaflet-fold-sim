@@ -46,6 +46,12 @@ export async function pdfToImages(fileOrBuffer, opts = {}) {
 
   const loadingTask = pdfjsLib.getDocument({ data });
   const pdf = await loadingTask.promise;
+  if (pdf.numPages > maxPages && !opts.allowTruncate) {
+    const count = pdf.numPages;
+    await pdf.destroy();
+    throw new Error(`PDF는 ${count}쪽이에요. 현재 입력 방식에서는 최대 ${maxPages}쪽까지 지원해요.`);
+  }
+  try {
   const total = Math.min(pdf.numPages, maxPages);
   const images = [];
 
@@ -63,6 +69,7 @@ export async function pdfToImages(fileOrBuffer, opts = {}) {
   }
 
   return images;
+  } finally { await pdf.destroy(); }
 }
 
 function canvasToImage(canvas) {

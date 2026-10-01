@@ -35,10 +35,11 @@ export function drawFoldSheet(ctx, opts) {
   ctx.strokeRect(x0, y0, W, H);
 
   panels.forEach((p, i) => {
-    const px = x0 + (foldAxis === "vertical" ? p.x * scale : 0);
-    const py = y0 + (foldAxis === "horizontal" ? p.y * scale : 0);
-    const pw = (foldAxis === "vertical" ? p.width : sheet.widthMm) * scale;
-    const ph = (foldAxis === "horizontal" ? p.height : sheet.heightMm) * scale;
+    const panelX = side === "back" ? sheet.widthMm - p.x - p.width : p.x;
+    const px = x0 + panelX * scale;
+    const py = y0 + p.y * scale;
+    const pw = p.width * scale;
+    const ph = p.height * scale;
 
     const img =
       images.getPanel?.(side, i) ||
@@ -48,33 +49,30 @@ export function drawFoldSheet(ctx, opts) {
       try {
         if (images.getPanel?.(side, i)) {
           ctx.drawImage(img, px, py, pw, ph);
-        } else if (foldAxis === "vertical") {
-          // slice from full front/back
-          const sx = (p.x / sheet.widthMm) * img.naturalWidth;
-          const sw = (p.width / sheet.widthMm) * img.naturalWidth;
-          ctx.drawImage(img, sx, 0, sw, img.naturalHeight, px, py, pw, ph);
         } else {
+          const sx = (panelX / sheet.widthMm) * img.naturalWidth;
+          const sw = (p.width / sheet.widthMm) * img.naturalWidth;
           const sy = (p.y / sheet.heightMm) * img.naturalHeight;
           const sh = (p.height / sheet.heightMm) * img.naturalHeight;
-          ctx.drawImage(img, 0, sy, img.naturalWidth, sh, px, py, pw, ph);
+          ctx.drawImage(img, sx, sy, sw, sh, px, py, pw, ph);
         }
       } catch {
-        fillPlaceholder(ctx, px, py, pw, ph, `${side[0].toUpperCase()}${i + 1}`);
+        fillPlaceholder(ctx, px, py, pw, ph, `${side === "front" ? "A" : "B"}${i + 1}`);
       }
     } else {
-      fillPlaceholder(ctx, px, py, pw, ph, `${side[0].toUpperCase()}${i + 1}`);
+      fillPlaceholder(ctx, px, py, pw, ph, `${side === "front" ? "A" : "B"}${i + 1}`);
     }
 
     // crease
     ctx.strokeStyle = "rgba(200,160,40,0.7)";
     ctx.setLineDash([4, 3]);
-    if (foldAxis === "vertical" && i < panels.length - 1) {
+    if (panelX + p.width < sheet.widthMm - 0.01) {
       ctx.beginPath();
       ctx.moveTo(px + pw, py);
       ctx.lineTo(px + pw, py + ph);
       ctx.stroke();
     }
-    if (foldAxis === "horizontal" && i < panels.length - 1) {
+    if (p.y + p.height < sheet.heightMm - 0.01) {
       ctx.beginPath();
       ctx.moveTo(px, py + ph);
       ctx.lineTo(px + pw, py + ph);
@@ -84,7 +82,7 @@ export function drawFoldSheet(ctx, opts) {
 
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.font = "11px sans-serif";
-    ctx.fillText(`${side === "front" ? "F" : "B"}${i + 1}`, px + 4, py + 14);
+    ctx.fillText(`${side === "front" ? "A" : "B"}${i + 1}`, px + 4, py + 14);
   });
 
   if (title) {
@@ -160,7 +158,7 @@ export function renderFoldFlatCanvas({
     images,
     side: "front",
     scale,
-    title: "앞면 (Front)",
+    title: "종이 A면",
   });
   drawFoldSheet(ctx, {
     x0: PAD,
@@ -171,7 +169,7 @@ export function renderFoldFlatCanvas({
     images,
     side: "back",
     scale,
-    title: "뒷면 (Back)",
+    title: "종이 B면 · 좌우로 뒤집어 본 모습",
   });
 
   return canvas;
