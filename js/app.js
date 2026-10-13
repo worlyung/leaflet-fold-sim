@@ -107,7 +107,7 @@ async function main() {
   }
 
   applyDefaults();
-  studio = initStudioUI({ state, renderAll, loadImageFile, showBanner, getBookletPageSize, rebuildBookletPageList });
+  studio = initStudioUI({ state, renderAll, loadImageFile, showBanner, getSize, getBookletPageSize, rebuildBookletPageList });
   bindUI();
   populateSelects();
   rebuildPanelUploadSlots();

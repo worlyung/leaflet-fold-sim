@@ -1,12 +1,14 @@
 import { Poster3DViewer } from "./poster-3d.js";
 import { Photozone3DViewer, photozoneDimensions } from "./photozone-3d.js";
 import { Book3DViewer, bookDimensions } from "./book-3d.js";
+import { connectTurdam } from "./turdam-bridge.js";
+import { connectCanvas } from "./canvas-bridge.js";
 
 const $ = (s) => document.querySelector(s);
 const numeric = (id, text, value, min, max, step = 1) => `<div class="field"><label for="${id}">${text}</label><input id="${id}" type="number" value="${value}" min="${min}" max="${max}" step="${step}"></div>`;
 const upload = (id, text) => `<div class="field"><label for="${id}">${text}</label><div class="asset-input"><input id="${id}" type="file" accept="image/*"><button type="button" data-clear="${id}" aria-label="${text} 지우기">×</button></div><small id="${id}Status" class="hint">이미지 없음</small></div>`;
 const check = (id, text) => `<label class="studio-check"><input id="${id}" type="checkbox" checked> ${text}</label>`;
-export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getBookletPageSize, rebuildBookletPageList }) {
+export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getSize, getBookletPageSize, rebuildBookletPageList }) {
   state.poster = { width: 420, height: 594, front: null, back: null, backColor: "#ede9df" };
   state.photozone = { width: 4000, height: 2500, depth: 1200, section: 290, printWidth: 4000, printHeight: 2500,
     mount: "cover", front: null, back: null, backColor: "#e6e3da", showPrint: true, braces: true, feet: true, weights: true, person: true, personHeight: 1700 };
@@ -45,6 +47,7 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getB
     <div class="control"><button type="button" id="bookLeafPrev" aria-label="이전 내지">←</button><label for="bookTurn">내지 넘김</label><input id="bookTurn" type="range" min="0" max="1" step="0.001" value="0.4"><button type="button" id="bookLeafNext" aria-label="다음 내지">→</button><output id="bookTurnOut"></output></div>
     <span class="hint">종이 움직임은 시각적 근사예요.</span></div>`);
 
+  connectTurdam({state,renderAll,showBanner});
   const bind = (id, obj, key) => {
     const el = $(`#${id}`);
     el.addEventListener("change", () => {
@@ -83,6 +86,7 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getB
       obj[key] = null; $(`#${id}`).value = ""; $(`#${id}Status`).textContent = "이미지 없음"; renderAll();
     });
   }
+  connectCanvas({state,getSize,getBookletPageSize,bookDimensions,renderAll,rebuildBookletPageList,showBanner});
   let extraViewer = null, extraType = null, leafAnimation = 0;
   const active = () => state.productMode === "fold" ? state.viewer3d : state.productMode === "booklet" ? state.book3dViewer : extraViewer;
   const updateBookMotion = () => {
