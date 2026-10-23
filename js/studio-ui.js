@@ -3,6 +3,8 @@ import { Photozone3DViewer, photozoneDimensions } from "./photozone-3d.js";
 import { Book3DViewer, bookDimensions } from "./book-3d.js";
 import { connectTurdam } from "./turdam-bridge.js";
 import { connectCanvas } from "./canvas-bridge.js";
+import { initPrintOptions } from './print-options.js';
+import { initOutputCheck } from './output-check.js';
 
 const $ = (s) => document.querySelector(s);
 const numeric = (id, text, value, min, max, step = 1) => `<div class="field"><label for="${id}">${text}</label><input id="${id}" type="number" value="${value}" min="${min}" max="${max}" step="${step}"></div>`;
@@ -17,7 +19,7 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getS
   const sidebar = $(".sidebar");
   sidebar.insertAdjacentHTML("beforeend", `<div id="panelPoster" hidden>
     <section class="section"><h2>포스터 규격</h2><div class="row">${numeric("posterWidth", "가로 mm", 420, 50, 5000)}${numeric("posterHeight", "세로 mm", 594, 50, 5000)}</div></section>
-    <section class="section"><h2>양면 디자인</h2>${upload("posterFront", "포스터 앞면")}${upload("posterBack", "포스터 뒷면")}
+    <section class="section"><h2>디자인 이미지 · 뒷면은 선택</h2>${upload("posterFront", "포스터 앞면")}${upload("posterBack", "포스터 뒷면")}
     <div class="field"><label for="posterColor">뒷면 종이색</label><input id="posterColor" type="color" value="#ede9df"></div><p class="hint">뒷면 이미지가 없으면 종이색으로 보여요.</p></section></div>
     <div id="panelPhotozone" hidden><section class="section"><h2>트러스 외곽 규격</h2>
     <div class="row">${numeric("zoneWidth", "가로 mm", 4000, 1000, 12000)}${numeric("zoneHeight", "높이 mm", 2500, 1000, 6000)}</div>
@@ -25,8 +27,8 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getS
     <p class="hint">수정 가능한 예시 규격이에요. 설치 외형 확인용이며 구조 안전성 계산은 포함하지 않아요.</p></section>
     <section class="section"><h2>출력물</h2><div class="row">${numeric("zonePrintW", "출력 가로 mm", 4000, 100, 12000)}${numeric("zonePrintH", "출력 높이 mm", 2500, 100, 6000)}</div>
     <div class="field"><label for="zoneMount">출력물 설치 위치</label><select id="zoneMount"><option value="cover">트러스 앞에 덮기</option><option value="inset">트러스 안쪽에 설치</option></select></div>
-    ${upload("zoneFront", "포토존 앞면")}${upload("zoneBack", "포토존 뒷면")}
-    <div class="field"><label for="zoneColor">단면 출력의 배면색</label><input id="zoneColor" type="color" value="#e6e3da"></div>
+    ${upload("zoneFront", "포토존·백월 앞면 이미지")}${upload("zoneBack", "포토존·백월 뒷면 이미지 (선택)")}
+    <div class="field"><label for="zoneColor">이미지가 없는 뒷면 색상</label><input id="zoneColor" type="color" value="#e6e3da"></div>
     ${check("zonePrint", "출력물 표시")}</section>
     <section class="section"><h2>구조 · 크기 비교</h2>${check("zoneBraces", "후면 지지대")}${check("zoneFeet", "바닥 받침")}${check("zoneWeights", "웨이트")}${check("zonePerson", "사람 모형")}
     ${numeric("zonePersonHeight", "사람 키 mm", 1700, 500, 2200)}</section></div>`);
@@ -47,6 +49,8 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getS
     <div class="control"><button type="button" id="bookLeafPrev" aria-label="이전 내지">←</button><label for="bookTurn">내지 넘김</label><input id="bookTurn" type="range" min="0" max="1" step="0.001" value="0.4"><button type="button" id="bookLeafNext" aria-label="다음 내지">→</button><output id="bookTurnOut"></output></div>
     <span class="hint">종이 움직임은 시각적 근사예요.</span></div>`);
 
+  const printOptions=initPrintOptions({state,renderAll,loadImageFile,showBanner,getSize,getBookletPageSize});
+  const outputCheck=initOutputCheck({state,renderAll,getSize,getBookletPageSize});
   connectTurdam({state,renderAll,showBanner});
   const bind = (id, obj, key) => {
     const el = $(`#${id}`);
@@ -118,6 +122,8 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getS
   return {
     active,
     sync() {
+      printOptions.sync();
+      outputCheck.sync();
       const is3d = ["orbit3d","book3d","studio"].includes(state.viewMode);
       $("#panelPoster").hidden = state.productMode !== "poster";
       $("#panelPhotozone").hidden = state.productMode !== "photozone";
@@ -137,8 +143,8 @@ export function initStudioUI({ state, renderAll, loadImageFile, showBanner, getS
       extraViewer.setRotation(...(state.objectRotations[extraType] || [0,0,0]));
       extraViewer.build(o);
       this.sync();
-      $("#statsTitle").textContent=extraType === "poster" ? "포스터" : "트러스 포토존";
-      $("#stats").textContent= `${o.width} × ${o.height} mm${extraType === "photozone" ? ` · 뒤쪽 받침 ${o.depth} mm` : " · 양면"}`;
+      $("#statsTitle").textContent=extraType === "poster" ? ({banner:'배너',fabric:'현수막',lamp:'가로등 현수기'}[o.kind] || "포스터") : "포토존 · 백월";
+      $("#stats").textContent= `${o.width} × ${o.height} mm${extraType === "photozone" ? ` · 뒤쪽 받침 ${o.depth} mm` : o.back ? " · 뒷면 이미지 있음" : " · 뒷면은 지정 색상"}`;
       $("#widthChips").textContent=extraType === "photozone" ? `출력물 ${o.printWidth} × ${o.printHeight} mm` : "실제 비율 · 360° 확인";
     },
     renderBook() {

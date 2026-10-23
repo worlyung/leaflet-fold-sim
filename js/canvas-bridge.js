@@ -4,7 +4,7 @@ export function connectCanvas({state,getSize,getBookletPageSize,bookDimensions,r
   const encode=image=>{if(!image)return '';const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(image.width,image.height));c.width=Math.max(1,Math.round(image.width*scale));c.height=Math.max(1,Math.round(image.height*scale));c.getContext('2d').drawImage(image,0,0,c.width,c.height);return c.toDataURL('image/png');};
   const foldSize=()=>{const s=getSize();let w=s.widthMm,h=s.heightMm;if(state.orientation==='landscape'&&w<h||state.orientation==='portrait'&&w>h)[w,h]=[h,w];return {widthMm:w,heightMm:h};};
   const entries=[['frontFile','리플렛 A면',()=>state,'frontImage',foldSize],['backFile','리플렛 B면',()=>state,'backImage',foldSize]];
-  for(const [id,name,kind,key] of [['posterFront','포스터 앞면','poster','front'],['posterBack','포스터 뒷면','poster','back'],['zoneFront','포토존 앞면','photozone','front'],['zoneBack','포토존 뒷면','photozone','back'],['bookFront','책 앞표지','book','front'],['bookBack','책 뒷표지','book','back'],['bookSpine','책등','book','spine']]){
+  for(const [id,name,kind,key] of [['posterFront','포스터 앞면','poster','front'],['posterBack','포스터 뒷면','poster','back'],['lampLeftFront','가로등 현수기 왼쪽 앞면','poster','leftFront'],['lampLeftBack','가로등 현수기 왼쪽 뒷면','poster','leftBack'],['zoneFront','포토존·백월 앞면','photozone','front'],['zoneBack','포토존·백월 뒷면','photozone','back'],['bookFront','책 앞표지','book','front'],['bookBack','책 뒷표지','book','back'],['bookSpine','책등','book','spine']]){
     entries.push([id,name,()=>state[kind],key,()=>{
       if(kind==='book'){const p=getBookletPageSize();return {widthMm:key==='spine'?bookDimensions({...state.book,binding:state.bindingId,pages:state.pageImages.slice(1,-1)}).thickness:p.widthMm,heightMm:p.heightMm};}
       const o=state[kind];return {widthMm:kind==='photozone'?o.printWidth:o.width,heightMm:kind==='photozone'?o.printHeight:o.height};
@@ -17,7 +17,8 @@ export function connectCanvas({state,getSize,getBookletPageSize,bookDimensions,r
       try{const dims=size(),target=object(),token=crypto.randomUUID(),url=new URL(origin);url.searchParams.set('turdam',token);url.searchParams.set('origin',location.origin);
         const image=encode(target[key]);if(image.length>6000000)throw Error('기존 이미지가 너무 커요. 작은 이미지로 다시 넣어 주세요.');
         const popup=window.open(url.href,'_blank');if(!popup)throw Error('팝업을 허용한 뒤 다시 눌러 주세요.');
-        session={popup,token,target,key,object,size,dims,image,name,id,original:target[key],mode:state.productMode};
+        const targetName=id.startsWith('poster')?`${{banner:'배너',fabric:'현수막',lamp:'가로등 현수기 오른쪽'}[state.poster.kind]||'포스터'} ${key==='front'?'앞면':'뒷면'}`:name;
+        session={popup,token,target,key,object,size,dims,image,name:targetName,id,original:target[key],mode:state.productMode};
         showBanner('캔버스에서 디자인한 뒤 터담에 적용을 눌러 주세요.');
       }catch(e){showBanner(e.message,true);}
     };

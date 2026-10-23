@@ -89,7 +89,7 @@
           </section>
 
           <details class="section">
-            <summary>인쇄소 면폭 템플릿</summary>
+            <summary>인쇄소별 접지 폭 설정</summary>
             <div class="field">
               <label for="shopTemplateSelect">저장된 템플릿</label>
               <select id="shopTemplateSelect">
@@ -101,24 +101,24 @@
               <input id="shopTemplateName" type="text" placeholder="예: OO인쇄 C접지" />
             </div>
             <div class="row">
-              <button type="button" id="btnSaveShopTpl">현재 축소값 저장</button>
+              <button type="button" id="btnSaveShopTpl">접지 폭 설정 저장</button>
               <button type="button" id="btnDelShopTpl">삭제</button>
             </div>
             <div class="row" style="margin-top:0.45rem">
-              <button type="button" id="btnExportShopJson">JSON 내보내기</button>
+              <button type="button" id="btnExportShopJson">접지 설정 파일 저장</button>
               <label class="file-btn" id="shopImportLabel" style="min-height:2.2rem;margin:0">
-                JSON 가져오기
+                접지 설정 파일 불러오기
                 <input id="shopImportFile" type="file" accept="application/json,.json" />
               </label>
             </div>
             <div class="field" style="margin-top:0.4rem">
               <label for="shopImportMode">가져오기 방식</label>
               <select id="shopImportMode">
-                <option value="merge">병합 (같은 id 덮어쓰기)</option>
-                <option value="replace">전체 교체</option>
+                <option value="merge">기존 목록에 추가 (같은 항목은 갱신)</option>
+                <option value="replace">접지 설정 목록 전체 교체</option>
               </select>
             </div>
-            <p class="hint">브라우저 localStorage + JSON 파일 백업/공유.</p>
+            <p class="hint">접지 폭 설정만 이 브라우저에 저장해요. 이미지와 작업 전체는 포함하지 않아요. 파일로 저장하면 다른 컴퓨터에서도 불러올 수 있어요.</p>
           </details>
 
           <section class="section">
@@ -136,11 +136,11 @@
               </label>
             </div>
             <div class="field">
-              <label>패널별 덮어쓰기 (선택)</label>
+              <label>접힌 구역별 이미지 교체 (선택)</label>
               <div class="panel-uploads" id="panelUploads"></div>
               <p class="hint">A/B는 펼친 종이의 양면이에요. 번호는 A면 기준 같은 종이 패널을 가리켜요. B면은 좌우로 뒤집어 본 모습이며, 완성 표지는 접지 방식마다 달라요.</p>
             </div>
-            <button type="button" id="clearImages">이미지 모두 지우기</button>
+            <button type="button" id="clearImages">리플렛 이미지 모두 지우기</button>
             <div class="field" style="margin-top:0.55rem">
               <label class="file-btn" id="foldPdfLabel">
                 PDF에서 A/B면 추출 (1·2쪽)
@@ -182,7 +182,7 @@
               <p class="hint" id="bindingNote"></p>
             </div>
             <div class="field">
-              <label for="pageCountSelect">페이지 수</label>
+              <label for="pageCountSelect">전체 페이지 수 (표지 포함)</label>
               <select id="pageCountSelect"></select>
             </div>
             <div class="field">
@@ -193,17 +193,17 @@
               </select>
             </div>
             <div class="field" id="parentSheetField">
-              <label for="parentSheetSelect">중철 부모 용지 (펼친 장)</label>
+              <label for="parentSheetSelect">중철 인쇄용 종이 크기 (접기 전)</label>
               <select id="parentSheetSelect"></select>
-              <p class="hint" id="parentSheetHint">완성 페이지 2up 기준 자동 추천</p>
+              <p class="hint" id="parentSheetHint">완성 페이지 두 면을 나란히 놓는 크기로 추천해요.</p>
             </div>
             <div class="row" id="parentCustomRow" hidden>
               <div class="field">
-                <label for="parentCustomW">부모 가로 mm</label>
+                <label for="parentCustomW">인쇄용 종이 가로 mm</label>
                 <input id="parentCustomW" type="number" min="50" max="1200" value="297" />
               </div>
               <div class="field">
-                <label for="parentCustomH">부모 세로 mm</label>
+                <label for="parentCustomH">인쇄용 종이 세로 mm</label>
                 <input id="parentCustomH" type="number" min="50" max="1200" value="420" />
               </div>
             </div>
@@ -235,8 +235,8 @@
           <section class="section">
             <h2>내보내기 (책자)</h2>
             <div class="row">
-              <button type="button" id="btnExportImpPng">임포지션 PNG</button>
-              <button type="button" id="btnExportImpPdf">임포지션 PDF</button>
+              <button type="button" id="btnExportImpPng">인쇄 면배치 PNG</button>
+              <button type="button" id="btnExportImpPdf">인쇄 면배치 PDF</button>
             </div>
             <p class="hint">중철 제본일 때 시트별 앞·뒤 배치를 내보냅니다.</p>
           </section>
@@ -256,9 +256,9 @@
             <button type="button" data-view="orbit3d">3D 회전</button>
           </div>
           <div id="toolbarBooklet" class="segment" hidden>
-            <button type="button" data-view="spread" class="active" aria-pressed="true">스프레드</button>
-            <button type="button" data-view="flipbook">플립북</button>
-            <button type="button" data-view="imposition">임포지션</button>
+            <button type="button" data-view="spread" class="active" aria-pressed="true">펼친 두 페이지</button>
+            <button type="button" data-view="flipbook">페이지 넘기기</button>
+            <button type="button" data-view="imposition">인쇄 면배치</button>
             <button type="button" data-view="printguide">인쇄 가이드</button>
             <button type="button" data-view="thumbs">전체 페이지</button>
             <button type="button" data-view="book3d">3D 책</button>

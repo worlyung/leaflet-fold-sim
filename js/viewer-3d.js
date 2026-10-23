@@ -43,7 +43,13 @@ export class Leaflet3DViewer extends SceneViewer {
     return c;
   }
   panel(p, group, x = p.width / 2, y = -p.height / 2) {
-    const mesh = this.sheet(p.width, p.height, 0.24, this.face(p, false), this.face(p, true), group, `panel-${p.index}`);
+    const surface=SceneViewer.printSurface;
+    if(surface?.mask){
+      const crop=panelCrop(p,this.width,this.height,false), img=surface.mask, c=document.createElement('canvas'); c.width=512;c.height=512;
+      c.getContext('2d').drawImage(img,crop.x*img.width,crop.y*img.height,crop.w*img.width,crop.h*img.height,0,0,512,512);
+      this.surface={...surface,mask:c};
+    } else this.surface=undefined;
+    const mesh = this.sheet(p.width, p.height, surface?.thickness || 0.24, this.face(p, false), this.face(p, true), group, `panel-${p.index}`);
     mesh.position.set(x, y, 0); return mesh;
   }
   group(parent, x, y, z = 0) {

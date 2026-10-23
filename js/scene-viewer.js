@@ -1,3 +1,4 @@
+import { surfaceMaterial } from './print-material.js';
 /** Shared camera, resources and interaction for all physical mockups. Units: mm. */
 export class SceneViewer {
   constructor(container) {
@@ -19,6 +20,7 @@ export class SceneViewer {
     this.controls.dampingFactor = 0.1;
     this.scene.add(new T.HemisphereLight(0xffffff, 0x667181, 2.3));
     const key = new T.DirectionalLight(0xffffff, 2.5);
+    this.keyLight = key;
     key.position.set(400, 700, 1000);
     const fill = new T.DirectionalLight(0xb9d3ff, 1.2);
     fill.position.set(-600, 200, -800);
@@ -35,12 +37,14 @@ export class SceneViewer {
       this.controls.autoRotate = this.autoRotate;
       this.controls.autoRotateSpeed = 1.5;
       this.controls.update();
+      this.updateAnimation?.(performance.now()/1000);
       this.renderer.render(this.scene, this.camera);
     };
     this.animate();
   }
   own(resource) { this.resources.add(resource); return resource; }
   clearRoot() {
+    this.surfaceEnvironment=null;
     this.root.clear();
     this.resources.forEach((r) => r.dispose?.());
     this.resources.clear();
@@ -72,6 +76,12 @@ export class SceneViewer {
   }
   sheet(w, h, d, front, back, parent = this.root, name = "sheet", color = 0xf1ece2) {
     const edge = this.material(color);
+    const surface = this.surface === undefined ? SceneViewer.printSurface : this.surface;
+    if (surface && this.constructor.name !== 'Photozone3DViewer') {
+      if(this.keyLight) { const a=surface.light*Math.PI/180; this.keyLight.position.set(Math.sin(a)*1000,500,Math.cos(a)*1000); }
+      const frontSurface={...surface,mask:name==='front-cover'||name==='poster'||name==='sheet'||name.startsWith('panel-')?surface.mask:null};
+      return this.box(w,h,d,[edge,edge,edge,edge,surfaceMaterial(this,front,frontSurface),surfaceMaterial(this,back,{...surface,mask:null})],parent,name);
+    }
     return this.box(w, h, d, [edge, edge, edge, edge,
       this.material(color, front), this.material(color, back)], parent, name);
   }

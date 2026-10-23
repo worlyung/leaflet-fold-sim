@@ -6,6 +6,7 @@ import {
 import { Leaflet3DViewer } from "./viewer-3d.js";
 import { foldCovers, foldFaceLabel } from "./fold-faces.js";
 import { initStudioUI } from "./studio-ui.js";
+import {initProjectFile,PROJECT_KEYS} from './project-file.js';
 import {
   normalizePageCount,
   bookPageLimit,
@@ -108,13 +109,24 @@ async function main() {
 
   applyDefaults();
   studio = initStudioUI({ state, renderAll, loadImageFile, showBanner, getSize, getBookletPageSize, rebuildBookletPageList });
+  initProjectFile({state,books:bookDocuments,snapshotBooks,restore:restoreProject,showBanner});
   bindUI();
   populateSelects();
   rebuildPanelUploadSlots();
   rebuildBookletPageList();
   setProductMode(state.productMode, true);
+  const entry = new URLSearchParams(location.search);
+  if (entry.get('mode') === 'print') {
+    document.querySelector('#modeToggle [data-mode="photozone"]').style.display = 'none';
+    setProductMode('fold', true);
+    document.title = '인쇄물 스튜디오';
+  } else if (entry.get('turdam') === 'photozone' && parent !== window) {
+    document.querySelectorAll('#modeToggle [data-mode]').forEach(button => { if(button.dataset.mode !== 'photozone') button.style.display = 'none'; });
+    setProductMode('photozone', true);
+    document.title = '포토존 만들기 · 배치';
+  }
   showBanner(
-    "유형을 선택하고 이미지를 넣어 보세요. 드래그로 회전, 휠로 확대, 오른쪽 드래그로 이동해요. 입력은 현재 탭에만 유지돼요.",
+    "유형을 선택하고 이미지를 넣어 보세요. 작업 전체는 자동 저장되지 않아요. 저장 버튼 아래에서 파일에 포함되는 항목을 확인해 주세요.",
     false
   );
 }
@@ -155,10 +167,10 @@ async function loadDemoImages() {
       state.frontImage = front;
       state.backImage = back;
       $("#frontFileLabel").classList.add("has-file");
-      $("#frontFileLabel").firstChild.textContent = "demo front";
+      $("#frontFileLabel").firstChild.textContent = "종이 A면 · 예시 이미지";
       $("#backFileLabel").classList.add("has-file");
-      $("#backFileLabel").firstChild.textContent = "demo back";
-      showBanner("접지 데모 이미지 로드 (fixtures)", false);
+      $("#backFileLabel").firstChild.textContent = "종이 B면 · 예시 이미지";
+      showBanner("리플렛 A/B면에 예시 이미지를 넣었어요.", false);
     } else {
       const n = state.pageCount;
       ensurePageArray();
@@ -173,7 +185,7 @@ async function loadDemoImages() {
         }
       }
       rebuildBookletPageList();
-      showBanner(`책자 데모 ${ok}/${n}페이지 fixtures 로드`, false);
+      showBanner(`책자 예시 이미지 ${ok}/${n}페이지를 불러왔어요.`, false);
     }
     renderAll();
   } catch (err) {
@@ -445,12 +457,12 @@ function refreshParentSheetUI() {
   const hint = $("#parentSheetHint");
   if (!hint) return;
   if (state.bindingId !== "saddle_stitch") {
-    hint.textContent = "중철일 때만 부모 용지 매핑을 사용합니다.";
+    hint.textContent = "접기 전 인쇄용 종이 크기는 중철 제본에서만 사용해요.";
     return;
   }
   const r = getParentSheetResolved();
   const fitTxt = r.fits ? "수용 가능" : "여유 부족(재단·여백 확인)";
-  hint.textContent = `필요 전개 ${r.need.widthMm}×${r.need.heightMm} mm → 부모 ${r.parent.label} ${r.parent.widthMm}×${r.parent.heightMm} mm (${fitTxt}). ${r.suggestion.reason}`;
+  hint.textContent = `접기 전 크기 ${r.need.widthMm}×${r.need.heightMm} mm → 인쇄용 종이 ${r.parent.label} ${r.parent.widthMm}×${r.parent.heightMm} mm (${fitTxt}). ${r.suggestion.reason}`;
   if (state.parentSheetId === "auto" && r.suggestion.suggested) {
     // keep select on auto; don't force change
   }
@@ -498,6 +510,27 @@ function updateDeltaVisibility() {
 
 const bookDocuments = {};
 const bookDocumentKeys = ["bookletSizeId", "bookletCustomW", "bookletCustomH", "bookletOrient", "bindingId", "pageCount", "pageImages", "spreadIndex", "parentSheetId", "parentCustomW", "parentCustomH", "book"];
+function snapshotBooks(){if(state.productMode==='booklet')bookDocuments[state.brochure?'brochure':'book']=Object.fromEntries(bookDocumentKeys.map(k=>[k,k==='book'?{...state.book}:state[k]]));}
+function restoreProject(data){
+  const s=data.state,p=state.presets;
+  if(!p.sizes.some(x=>x.id===s.sizeId)||!p.folds.some(x=>x.id===s.foldId)||!p.bindings.some(x=>x.id===s.bindingId))throw Error('지원하지 않는 규격이나 접지 방식이에요.');
+  for(const key of ['poster','photozone','book','surface'])if(!s[key]||typeof s[key]!=='object')throw Error('제작 설정이 누락됐어요.');
+  for(const k of PROJECT_KEYS){if(['poster','photozone','book','surface'].includes(k)){for(const old of Object.keys(state[k]))delete state[k][old];Object.assign(state[k],s[k]);}else if(k in s)state[k]=s[k];}
+  for(const k of Object.keys(bookDocuments))delete bookDocuments[k];Object.assign(bookDocuments,data.books||{});snapshotBooks();
+  const mode=state.productMode,brochure=state.brochure;state.productMode='fold';
+  populateSelects();rebuildPanelUploadSlots();rebuildBookletPageList();
+  const fields={customW:state.customW,customH:state.customH,posterWidth:state.poster.width,posterHeight:state.poster.height,posterColor:state.poster.backColor,printKind:state.poster.kind||'poster',bannerStand:state.poster.stand||'x',fabricFinish:state.poster.finish||'eyelet',paperStock:state.surface.paper,paperGsm:state.surface.gsm,paperCaliper:state.surface.thickness,paperFinish:state.surface.finish,materialLight:state.surface.light,zoneWidth:state.photozone.width,zoneHeight:state.photozone.height,zoneDepth:state.photozone.depth,zoneSection:state.photozone.section,zonePrintW:state.photozone.printWidth,zonePrintH:state.photozone.printHeight,zoneMount:state.photozone.mount,zoneColor:state.photozone.backColor,zonePersonHeight:state.photozone.personHeight};
+  for(const[id,v]of Object.entries(fields))$('#'+id).value=v;
+  for(const[id,key]of [['zonePrint','showPrint'],['zoneBraces','braces'],['zoneFeet','feet'],['zoneWeights','weights'],['zonePerson','person']])$('#'+id).checked=state.photozone[key];
+  for(const[id,obj,key]of [['posterFront',state.poster,'front'],['posterBack',state.poster,'back'],['zoneFront',state.photozone,'front'],['zoneBack',state.photozone,'back']]){$('#'+id).value='';$('#'+id+'Status').textContent=obj[key]?'이미지 복원됨':'이미지 없음';}
+  $('#frontFileLabel').firstChild.textContent=state.frontImage?'종이 A면 · 이미지 복원됨':'종이 A면 이미지 선택';$('#backFileLabel').firstChild.textContent=state.backImage?'종이 B면 · 이미지 복원됨':'종이 B면 이미지 선택';
+  $('#epoxyStatus').textContent=state.surface.mask?'영역 적용됨':'영역 없음';
+  for(const side of ['Front','Back'])$('#lamp'+side+'Status').textContent=state.poster['left'+side]?'이미지 복원됨':'이미지 없음';
+  state.viewer3d?.dispose();state.viewer3d=null;state.book3dViewer?.dispose();state.book3dViewer=null;
+  setProductMode(mode,true,brochure);
+  const views=mode==='fold'?['flat','folded','flip','open','orbit3d']:mode==='booklet'?['spread','flipbook','imposition','printguide','thumbs','book3d']:['studio'];
+  if(views.includes(s.viewMode)){state.viewMode=s.viewMode;updateViewModeButtons();renderAll();}
+}
 function setProductMode(mode, silent, brochure = false) {
   if (state.productMode === "booklet") {
     bookDocuments[state.brochure ? "brochure" : "book"] = Object.fromEntries(bookDocumentKeys.map(k => [k, k === "book" ? { ...state.book } : state[k]]));
@@ -555,7 +588,7 @@ function setProductMode(mode, silent, brochure = false) {
         false
       );
   } else if (!silent) {
-    showBanner(mode === "poster" ? "앞·뒷면 이미지를 넣고 포스터를 돌려보세요." : "트러스와 출력물의 앞뒤를 확인해요. 출력물을 숨기면 뒷구조가 잘 보여요.", false);
+    showBanner(mode === "poster" ? "앞면 이미지를 넣고 출력물을 돌려보세요. 뒷면 이미지는 선택 사항이에요." : "트러스와 출력물의 앞뒤를 확인해요. 출력물을 숨기면 뒷구조가 잘 보여요.", false);
   }
   updateViewModeButtons();
   renderAll();
@@ -1095,7 +1128,7 @@ function exportFold(kind) {
 
 function exportImposition(kind) {
   if (state.bindingId !== "saddle_stitch") {
-    showBanner("임포지션 내보내기는 중철 제본에서만 가능합니다.", true);
+    showBanner("인쇄 면배치 파일은 중철 제본에서만 내보낼 수 있어요.", true);
     return;
   }
   try {
@@ -1109,7 +1142,7 @@ function exportImposition(kind) {
         pageCount: state.pageCount,
       });
       downloadCanvasPng(canvas, `imposition-${state.pageCount}p.png`);
-      showBanner("임포지션 PNG 저장", false);
+      showBanner("인쇄 면배치 PNG를 저장했어요.", false);
     } else {
       const canvases = renderImpositionSheetCanvases({
         pageSize: page,
@@ -1118,11 +1151,11 @@ function exportImposition(kind) {
         pageCount: state.pageCount,
       });
       downloadCanvasesPdf(canvases, `imposition-${state.pageCount}p.pdf`).then(
-        () => showBanner("임포지션 PDF 저장 (시트별 페이지)", false)
+        () => showBanner("인쇄 면배치 PDF를 저장했어요. 종이별 앞뒤 배치가 들어 있어요.", false)
       );
     }
   } catch (err) {
-    showBanner(`임포지션 내보내기 실패: ${err.message}`, true);
+    showBanner(`인쇄 면배치 저장 실패: ${err.message}`, true);
   }
 }
 
@@ -1688,7 +1721,7 @@ function renderBookletSpread() {
 
   const lab = document.createElement("div");
   lab.className = "finished-dims";
-  lab.textContent = `스프레드 ${state.spreadIndex + 1}/${spreads.length} · ${sp.label} · 페이지 ${page.widthMm}×${page.heightMm} mm`;
+  lab.textContent = `펼친 두 페이지 ${state.spreadIndex + 1}/${spreads.length} · ${sp.label} · 페이지 ${page.widthMm}×${page.heightMm} mm`;
   wrap.append(pages, lab);
   host.appendChild(wrap);
   $("#spreadOut").textContent = `${state.spreadIndex + 1} / ${spreads.length}`;

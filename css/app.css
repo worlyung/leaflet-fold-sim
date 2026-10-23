@@ -1206,3 +1206,8 @@ input[type="range"] {
     flex-wrap: wrap;
   }
 }
+/* Material controls share the sidebar width, including long file names. */
+#printSurface label { display:block; min-width:0; margin:8px 0; }
+#printSurface .row > label { flex:1; }
+#printSurface input, #printSurface select { width:100%; min-width:0; box-sizing:border-box; }
+#printSurface output { display:block; margin:6px 0; }

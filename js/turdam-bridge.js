@@ -13,7 +13,7 @@ export function connectTurdam({state,renderAll,showBanner}){
     if(e.data?.type==='turdam-photozone-error'){button.disabled=false;showBanner(e.data.message,true);return;}
     if(e.data?.type!=='turdam-photozone-init'||typeof e.data.session!=='string')return;
     session=e.data.session;
-    try{if(e.data.config){const c=e.data.config;for(const key of Object.values(fields))if(c[key]!==undefined)state.photozone[key]=c[key];state.photozone.front=await decode(c.front);state.photozone.back=await decode(c.back);}
+    try{if(e.data.config){const c=e.data.config;for(const key of Object.values(fields))if(c[key]!==undefined)state.photozone[key]=c[key];state.photozone.fit=['contain','cover'].includes(c.fit)?c.fit:'stretch';state.photozone.fitColor=c.fitColor||'#ffffff';state.photozone.front=await decode(c.front);state.photozone.back=await decode(c.back);}
       for(const [id,key] of Object.entries(fields)){const el=document.getElementById(id);if(el.type==='checkbox')el.checked=state.photozone[key];else el.value=state.photozone[key];}
       document.querySelector('#modeToggle [data-mode="photozone"]').click();renderAll();button.disabled=false;
     }catch(err){showBanner(err.message,true);}

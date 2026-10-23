@@ -1,4 +1,5 @@
 import { SceneViewer } from "./scene-viewer.js";
+import { fittedImage } from './image-layout.js';
 export function photozoneDimensions(o) {
   const section = Math.min(o.section, o.width / 4, o.height / 4);
   const margin = o.mount === "inset" ? section * 2 + 40 : 0;
@@ -37,8 +38,8 @@ export class Photozone3DViewer extends SceneViewer {
       if (o.weights) this.box(s + 120, 160, 380, this.material(0x485253), this.root, "ballast").position.set(x, 115, -depth * 0.72);
     }
     if (o.showPrint) {
-      const print = this.sheet(pw, ph, 3, o.front || this.label("PHOTO ZONE", "#497167", `${pw} × ${ph} mm`),
-        o.back, this.root, "photozone-print", o.backColor);
+      const print = this.sheet(pw, ph, 3, fittedImage(o.front,pw,ph,o.fit,o.fitColor) || this.label("PHOTO ZONE", "#497167", `${pw} × ${ph} mm`),
+        fittedImage(o.back,pw,ph,o.fit,o.fitColor), this.root, "photozone-print", o.backColor);
       print.position.set(0, h / 2, printZ);
     }
     const floor = this.box(w * 1.8, 12, Math.max(depth * 2.7, w), this.material(0x202a35), this.root, "floor");
