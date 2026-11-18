@@ -1211,3 +1211,13 @@ input[type="range"] {
 #printSurface .row > label { flex:1; }
 #printSurface input, #printSurface select { width:100%; min-width:0; box-sizing:border-box; }
 #printSurface output { display:block; margin:6px 0; }
+@media screen {
+  :root { --bg-elev:#1d2c25; --bg-panel:#23352b; --border:#43574a; --text:#eef5ec; --muted:#bbcabf; --accent:#a4d4ab; --accent-dim:#45694e; }
+  .topbar { background:#203b31; }
+  .topbar-meta { flex-wrap:wrap; }
+  .mode-toggle { border-radius:8px; padding:2px; gap:2px; }
+  .mode-toggle button { border-radius:6px; min-height:32px; }
+  .mode-toggle button.active { background:#dcebd7; color:#203d2c; font-weight:700; }
+  .topbar .badge.mvp { display:none; }
+  :is(button,input,select,summary):focus-visible { outline:2px solid #add1ac; outline-offset:2px; }
+}
