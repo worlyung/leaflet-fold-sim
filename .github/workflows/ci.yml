@@ -1,0 +1,28 @@
+name: Print studio checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install browser test dependencies
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          npm install --prefix .tmp/review-vendor --no-save three-print@npm:three@0.170.0 pdf-lib@1.17.1
+      - name: Review and geometry checks
+        env:
+          REVIEW_BROWSER: chromium
+          REVIEW_VENDOR: .tmp/review-vendor/node_modules
+        run: |
+          node --check js/print-review.js
+          node scripts/studio-test.mjs
+          python scripts/review-ui-test.py

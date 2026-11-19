@@ -7,6 +7,8 @@ import { Leaflet3DViewer } from "./viewer-3d.js";
 import { foldCovers, foldFaceLabel } from "./fold-faces.js";
 import { initStudioUI } from "./studio-ui.js";
 import {initProjectFile,PROJECT_KEYS} from './project-file.js';
+import {initPrintReview} from './print-review.js';
+import {fittedImage} from './image-layout.js';
 import {
   normalizePageCount,
   bookPageLimit,
@@ -35,6 +37,7 @@ import {
 } from "./shop-templates.js";
 import {
   renderFoldFlatCanvas,
+  drawFoldSheet,
   renderImpositionCanvas,
   renderImpositionSheetCanvases,
   downloadCanvasPng,
@@ -110,6 +113,7 @@ async function main() {
   applyDefaults();
   studio = initStudioUI({ state, renderAll, loadImageFile, showBanner, getSize, getBookletPageSize, rebuildBookletPageList });
   initProjectFile({state,books:bookDocuments,snapshotBooks,restore:restoreProject,showBanner});
+  initPrintReview({state,getSurfaces:reviewSurfaces,loadImageFile,showBanner});
   bindUI();
   populateSelects();
   rebuildPanelUploadSlots();
@@ -513,6 +517,7 @@ const bookDocumentKeys = ["bookletSizeId", "bookletCustomW", "bookletCustomH", "
 function snapshotBooks(){if(state.productMode==='booklet')bookDocuments[state.brochure?'brochure':'book']=Object.fromEntries(bookDocumentKeys.map(k=>[k,k==='book'?{...state.book}:state[k]]));}
 function restoreProject(data){
   const s=data.state,p=state.presets;
+  state.printReview=s.printReview||[];
   if(!p.sizes.some(x=>x.id===s.sizeId)||!p.folds.some(x=>x.id===s.foldId)||!p.bindings.some(x=>x.id===s.bindingId))throw Error('지원하지 않는 규격이나 접지 방식이에요.');
   for(const key of ['poster','photozone','book','surface'])if(!s[key]||typeof s[key]!=='object')throw Error('제작 설정이 누락됐어요.');
   for(const k of PROJECT_KEYS){if(['poster','photozone','book','surface'].includes(k)){for(const old of Object.keys(state[k]))delete state[k][old];Object.assign(state[k],s[k]);}else if(k in s)state[k]=s[k];}
@@ -1096,6 +1101,19 @@ function refreshShopTemplateSelect() {
     sel.appendChild(opt);
   });
   if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function reviewSurfaces(){
+  const simple=(key,label,w,h,img,bg='#ffffff')=>({key,label,canvas:()=>{const c=document.createElement('canvas'),scale=1200/Math.max(w,h);c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));const ctx=c.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,c.width,c.height);if(img)ctx.drawImage(img,0,0,c.width,c.height);return c;}});
+  if(state.productMode==='fold'){
+    const data=getSheetAndPanels();if(!data)return [];
+    const {sheet,panels,fold}=data;
+    return ['front','back'].map(side=>({key:`fold:${fold.id}:${state.foldAxis}:${sheet.widthMm}x${sheet.heightMm}:${side}`,label:`리플렛 ${side==='front'?'A면':'B면'} · ${fold.label}`,region:(x,y)=>{const i=panels.findIndex(p=>{const px=side==='back'?sheet.widthMm-p.x-p.width:p.x;return x*sheet.widthMm>=px&&x*sheet.widthMm<=px+p.width&&y*sheet.heightMm>=p.y&&y*sheet.heightMm<=p.y+p.height;});return i<0?'':foldFaceLabel(fold.id,side,i);},canvas:()=>{const scale=1200/Math.max(sheet.widthMm,sheet.heightMm),c=document.createElement('canvas');c.width=Math.round(sheet.widthMm*scale);c.height=Math.round(sheet.heightMm*scale);drawFoldSheet(c.getContext('2d'),{x0:0,y0:0,panels,sheet,foldAxis:state.foldAxis,side,scale,images:{front:state.frontImage,back:state.backImage,getPanel:(s,i)=>state.panelImages[`${s}-${i}`]}});return c;}}));
+  }
+  if(state.productMode==='booklet'){const size=getBookletPageSize();return Array.from({length:state.pageCount},(_,i)=>simple(`${state.brochure?'brochure':'book'}:${i}`,`${state.brochure?'책자형 리플렛':'책'} · ${pageLabel(i,state.pageCount)}`,size.widthMm,size.heightMm,bookImage(i)));}
+  const mode=state.productMode,o=mode==='poster'?state.poster:state.photozone;
+  const sides=mode==='poster'&&o.kind==='lamp'?['front','back','leftFront','leftBack']:['front','back'];
+  return sides.map(side=>simple(`${mode}:${o.kind||''}:${side}`,`${mode==='poster'?'포스터·홍보물':'포토존'} · ${{front:'앞면',back:'뒷면',leftFront:'왼쪽 앞면',leftBack:'왼쪽 뒷면'}[side]}`,o.width,o.height,mode==='poster'?fittedImage(o[side],o.width,o.height,o.fit,o.fitColor):o[side],side.toLowerCase().includes('back')?o.backColor:'#fff'));
 }
 
 function exportFold(kind) {
