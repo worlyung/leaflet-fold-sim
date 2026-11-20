@@ -1,4 +1,7 @@
 import {downloadCanvasPng,downloadCanvasesPdf} from './export-flat.js';
+import {composeReviewPages} from './review-export.js';
+import {createReviewCards} from './review-cards.js';
+import {placeInMargin} from './review-layout.js';
 
 const TYPES={box:'박스',circle:'동그라미',underline:'밑줄',arrow:'화살표',pin:'핀'};
 const clamp=n=>Math.max(0,Math.min(1,n));
@@ -9,6 +12,8 @@ export function validatePrintReview(rows){
   for(const r of rows){
     if(!r||typeof r.id!=='string'||ids.has(r.id)||!TYPES[r.type]||typeof r.surface!=='string'||typeof r.label!=='string')throw Error('수정 표시 형식 오류');ids.add(r.id);
     if(!['x','y','x2','y2'].every(k=>Number.isFinite(r[k])&&r[k]>=0&&r[k]<=1)||!/^#[0-9a-f]{6}$/i.test(r.color)||![2,4,6].includes(r.line))throw Error('수정 표시 위치·색상 오류');
+    for(const key of ['noteX','noteY'])if(r[key]!==undefined&&(!Number.isFinite(r[key])||r[key]<0||r[key]>1))throw Error('설명 박스 위치 오류');
+    for(const [key,min,max] of [['noteFont',10,32],['noteOpacity',.15,1],['noteWidth',.01,1]])if(r[key]!==undefined&&(!Number.isFinite(r[key])||r[key]<min||r[key]>max))throw Error('설명 박스 스타일 오류');
     for(const k of ['text','before','after','author','category'])if(typeof r[k]!=='string'||r[k].length>2000)throw Error('수정 요청 내용 오류');
     if(!Array.isArray(r.comments)||r.comments.length>500||r.comments.some(c=>!c||typeof c.text!=='string'||c.text.length>2000||typeof c.author!=='string'||typeof c.at!=='string'))throw Error('댓글 형식 오류');
     if(!Array.isArray(r.attachments)||r.attachments.length>4||r.attachments.some(a=>typeof a.name!=='string'||!(a.image instanceof HTMLImageElement)))throw Error('교체 이미지 형식 오류');
@@ -35,21 +40,68 @@ export function initPrintReview({state,getSurfaces,loadImageFile,showBanner:noti
   `;document.head.append(style);
   style.textContent+='.review-toolbar>label{white-space:nowrap;flex-shrink:0}.review-toolbar select{max-width:240px}#reviewTools{flex-shrink:0}';
   const $=id=>modal.querySelector('#'+id),svg=$('reviewMarks');
+  const artwork=document.createElement('div');artwork.id='reviewArtwork';$('reviewSheet').prepend(artwork);artwork.append($('reviewImage'),svg);
+  style.textContent+='#reviewSheet{max-width:1440px;min-width:1000px;padding:15% 20%;box-sizing:border-box}#reviewArtwork{position:relative}#reviewInline{max-height:70vh;overflow:auto}';
+  const inline=document.createElement('section');inline.id='reviewInline';inline.hidden=true;
+  const inlineTitle=document.createElement('strong');inlineTitle.textContent='수정 요청';
+  const textLabel=$('reviewText').parentElement;
+  const finish=document.createElement('button');finish.type='button';finish.textContent='입력 완료';
+  inline.append(inlineTitle,textLabel,finish);$('reviewSheet').append(inline);
+  const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='문구 교체 · 사진 · 댓글';
+  $('reviewEditor').before(details);details.append(summary,$('reviewEditor'));
+  inline.append(details);
+  modal.querySelector('.review-toolbar').append($('reviewAuthor').parentElement);
+  modal.querySelector('aside').hidden=true;
+  const appearance=document.createElement('div');appearance.className='review-appearance';
+  appearance.innerHTML='<label>글씨 <select id="reviewFont">'+[10,12,14,16,18,20,24,28,32].map(n=>`<option value="${n}">${n}px</option>`).join('')+'</select></label><label>배경 <input id="reviewOpacity" type="range" min="15" max="100" step="5" value="100" aria-label="박스 배경 불투명도"><output id="reviewOpacityValue">100%</output></label><button type="button" id="reviewAutoWidth">글에 맞춤</button>';
+  inline.insertBefore(appearance,finish);
+  const inlineResize=document.createElement('button');inlineResize.className='review-card-resize';inlineResize.type='button';inlineResize.textContent='◢';inlineResize.setAttribute('aria-label','입력 박스 너비 조절');inline.append(inlineResize);
+  style.textContent+=`.review-layout{display:block!important}.review-stage{height:100%;box-sizing:border-box}#reviewAuthor{width:100px}#reviewCards{position:absolute;inset:0;pointer-events:none}.review-card{position:absolute;box-sizing:border-box;min-width:100px;border:1px solid;border-left:4px solid;border-radius:6px;padding:6px 10px 14px;z-index:2;box-shadow:0 2px 5px #0001;overflow-wrap:anywhere}#printReview .review-card-title,#printReview .review-card-body{display:block;width:100%;text-align:left;background:transparent;border:0;padding:0;white-space:pre-wrap;border-radius:0}#printReview .review-card-title{font-size:12px;font-weight:bold;cursor:move;touch-action:none;margin-bottom:3px}#printReview .review-card-body{font-size:inherit;line-height:1.45}#printReview .review-card-resize{position:absolute;bottom:0;right:0;padding:0 3px;border:0;background:transparent;cursor:ew-resize;touch-action:none;font-size:14px}#reviewInline details{font-size:12px;max-height:240px;overflow:auto;margin-top:8px}#reviewInline details label{font-size:12px!important;margin-top:6px}#reviewInline details input,#reviewInline details select{max-width:100%;width:100%}#reviewInline .review-appearance{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}#reviewInline .review-appearance label{display:flex;font-size:11px;gap:4px;align-items:center}#reviewInline .review-appearance select{padding:2px}#reviewInline .review-appearance input{width:65px;padding:0}#reviewInline details summary{cursor:pointer}`;
+  style.textContent+=`#reviewInline{position:absolute;z-index:3;background:#fffef5;border:1px solid #d93c35;border-left:4px solid #d93c35;border-radius:8px;padding:8px;box-shadow:0 3px 12px #0002;box-sizing:border-box;max-width:100%}#reviewInline strong{font-size:12px}#reviewInline label{display:block;font-size:0}#reviewInline textarea{display:block;width:100%;resize:none;font-size:14px;line-height:21px;min-height:48px;max-height:180px;margin:4px 0;background:transparent;border:0;padding:4px}#reviewInline button{font-size:12px;padding:3px 8px}#printReview aside details summary{cursor:pointer;padding:10px 0}`;
+  function positionInline(){
+    const r=current();inline.hidden=!r||!visible||tool!=='select';if(inline.hidden)return;
+    const sheet=$('reviewSheet'),w=sheet.clientWidth,h=sheet.clientHeight;
+    const text=$('reviewText'),probe=document.createElement('canvas').getContext('2d');probe.font="14px 'Malgun Gothic',sans-serif";
+    inline.style.width=Math.min(w,Math.max(160,Math.min(300,...(text.value||'어떻게 바꾸면 될까요?').split('\n').map(s=>probe.measureText(s).width+36))))+'px';
+    inline.style.width=Math.min(w*.2-26,Math.max(160,r.noteWidth&&r.noteSpace==='board'?r.noteWidth*w:240))+'px';
+    text.style.fontSize=(r.noteFont||14)+'px';text.style.lineHeight='1.5';inline.style.background=`rgba(255,254,245,${r.noteOpacity??1})`;inline.style.borderColor=r.color;
+    $('reviewFont').value=String(r.noteFont||14);$('reviewOpacity').value=String(Math.round((r.noteOpacity??1)*100));$('reviewOpacityValue').textContent=$('reviewOpacity').value+'%';
+    text.style.height='48px';text.style.height=Math.min(180,text.scrollHeight)+'px';
+    const bw=inline.offsetWidth,bh=inline.offsetHeight;
+    const b=placeInMargin(r,bw,bh,w,h)||{x:8,y:Math.max(8,h-bh-8)};let {x,y}=b;
+    inline.style.left=Math.max(0,Math.min(w-bw,x))+'px';inline.style.top=Math.max(0,Math.min(h-bh,y))+'px';inlineTitle.textContent=`${rows().indexOf(r)+1}. 수정 요청 · 드래그로 이동`;
+  }
+  inlineTitle.style.cssText='display:block;cursor:move;touch-action:none;user-select:none';
+  style.textContent+='#reviewInline .review-appearance label{white-space:nowrap;flex-shrink:0}#reviewInline .review-appearance select{width:auto}#reviewInline details[open]{min-width:0}';
+  let noteDrag=null;
+  inlineTitle.onpointerdown=e=>{if(e.button!==0)return;$('reviewText').blur();noteDrag={x:e.clientX,y:e.clientY,left:parseFloat(inline.style.left),top:parseFloat(inline.style.top)};inlineTitle.setPointerCapture(e.pointerId);e.preventDefault();};
+  inlineTitle.onpointermove=e=>{if(!noteDrag)return;const sheet=$('reviewSheet');inline.style.left=Math.max(0,Math.min(sheet.clientWidth-inline.offsetWidth,noteDrag.left+e.clientX-noteDrag.x))+'px';inline.style.top=Math.max(0,Math.min(sheet.clientHeight-inline.offsetHeight,noteDrag.top+e.clientY-noteDrag.y))+'px';};
+  inlineTitle.onpointerup=()=>{if(!noteDrag)return;noteDrag=null;update({noteX:clamp(parseFloat(inline.style.left)/$('reviewSheet').clientWidth),noteY:clamp(parseFloat(inline.style.top)/$('reviewSheet').clientHeight)});};
+  inlineTitle.onpointercancel=()=>{noteDrag=null;positionInline();};
+  inlineResize.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();$('reviewText').blur();const start=e.clientX,width=inline.offsetWidth;inlineResize.setPointerCapture(e.pointerId);inlineResize.onpointermove=ev=>{inline.style.width=Math.max(160,Math.min($('reviewSheet').clientWidth-parseFloat(inline.style.left),width+ev.clientX-start))+'px';};inlineResize.onpointerup=()=>{inlineResize.onpointermove=null;update({noteWidth:inline.offsetWidth/$('reviewSheet').clientWidth});};inlineResize.onpointercancel=()=>{inlineResize.onpointermove=null;positionInline();};};
+  $('reviewFont').onchange=()=>update({noteFont:Number($('reviewFont').value)});
+  $('reviewOpacity').oninput=()=>{inline.style.background=`rgba(255,254,245,${Number($('reviewOpacity').value)/100})`;$('reviewOpacityValue').textContent=$('reviewOpacity').value+'%';};
+  $('reviewOpacity').onchange=()=>update({noteOpacity:Number($('reviewOpacity').value)/100});
+  $('reviewAutoWidth').onclick=()=>update({noteWidth:undefined});
+  finish.onclick=()=>{$('reviewText').blur();choose(null);};
+  $('reviewText').oninput=positionInline;
+  new ResizeObserver(()=>{const s=$('reviewSheet'),w=s.clientWidth;s.style.padding=`${w*.15}px ${w*.2}px`;positionInline();cards.render();}).observe($('reviewSheet'));
   function showBanner(message,error){$('reviewHelp').textContent=message;$('reviewHelp').style.color=error?'#a52f2f':'#52645b';$('reviewHelp').setAttribute('role','status');notify(message,error);}
   let surfaces=[],surface=null,selected=null,tool='box',gesture=null,history=[],future=[],visible=true;
   const rows=()=>state.printReview||[];
   const current=()=>rows().find(r=>r.id===selected);
+  const cards=createReviewCards({sheet:$('reviewSheet'),getRows:rows,getSurface:()=>surface,getSelected:()=>tool==='select'?selected:null,isVisible:()=>visible,isSelecting:()=>tool==='select',choose,save:(id,patch,undo=true)=>{const next=rows().map(r=>r.id===id?{...r,...patch}:r);if(undo)commit(next);else state.printReview=next;}});
   function commit(next){history.push(rows());if(history.length>60)history.shift();future=[];state.printReview=next;draw();list();}
-  function update(patch){const r=current();if(r)commit(rows().map(x=>x.id===r.id?{...x,...patch}:x));}
-  function setTool(value){tool=value;for(const b of $('reviewTools').children)b.setAttribute('aria-pressed',String(b.dataset.tool===tool));svg.style.cursor=value==='select'?'default':'crosshair';}
+  function update(patch){const r=current();if('noteX' in patch||'noteWidth' in patch)patch.noteSpace='board';if(r)commit(rows().map(x=>x.id===r.id?{...x,...patch}:x));}
+  function setTool(value){tool=value;for(const b of $('reviewTools').children)b.setAttribute('aria-pressed',String(b.dataset.tool===tool));svg.style.cursor=value==='select'?'default':'crosshair';positionInline();cards.render();}
   $('reviewTools').onclick=e=>{if(e.target.dataset.tool)setTool(e.target.dataset.tool);};
   function list(){const list=$('reviewList');list.replaceChildren();rows().forEach((r,i)=>{const b=document.createElement('button');b.textContent=`${r.resolved?'✓':'○'} ${i+1}. ${r.label} · ${r.text||r.after||TYPES[r.type]}`;b.classList.toggle('selected',r.id===selected);b.onclick=()=>{const s=surfaces.find(s=>s.key===r.surface);if(!s){showBanner('현재 제품·규격에 없는 표시예요. 원래 제품·규격으로 돌아가 주세요.',true);return;}surface=s;$('reviewSurface').value=s.key;paint();choose(r.id);[...svg.children].find(g=>g.getAttribute('data-id')===r.id)?.scrollIntoView({block:'center',inline:'center'});};list.append(b);});$('reviewUndo').disabled=!history.length;$('reviewRedo').disabled=!future.length;}
-  function choose(id){selected=id;const r=current();$('reviewEditor').hidden=!r;$('reviewEmpty').hidden=!!r;if(r){$('reviewTitle').textContent=`${rows().indexOf(r)+1}. ${r.label}`;for(const [field,key]of [['reviewText','text'],['reviewBefore','before'],['reviewAfter','after'],['reviewCategory','category'],['reviewColor','color'],['reviewLine','line']])$(field).value=r[key];$('reviewDone').textContent=r.resolved?'다시 열기':'수정 완료';$('reviewReply').value='';threads();attachments();}draw();list();}
+  function choose(id){selected=id;const r=current();$('reviewEditor').hidden=!r;$('reviewEmpty').hidden=!!r;if(r){$('reviewTitle').textContent=`${rows().indexOf(r)+1}. ${r.label}`;for(const [field,key]of [['reviewText','text'],['reviewBefore','before'],['reviewAfter','after'],['reviewCategory','category'],['reviewColor','color'],['reviewLine','line']])$(field).value=r[key];setTool('select');$('reviewDone').textContent=r.resolved?'다시 열기':'수정 완료';$('reviewReply').value='';threads();attachments();}draw();list();}
   function threads(){const r=current();$('reviewComments').replaceChildren();for(const c of r?.comments||[]){const a=document.createElement('article');a.textContent=`${c.author} · ${new Date(c.at).toLocaleString('ko-KR')}\n${c.text}`;$('reviewComments').append(a);}}
   function attachments(){const host=$('reviewAttachments');host.replaceChildren();for(const [i,a]of (current()?.attachments||[]).entries()){const f=document.createElement('figure'),img=document.createElement('img'),b=document.createElement('button');img.src=a.image.src;img.alt=a.name;b.textContent='제거';b.onclick=()=>{update({attachments:current().attachments.filter((_,j)=>j!==i)});attachments();};f.append(img,document.createTextNode(a.name),b);host.append(f);}}
   function paint(){const c=surface.preview||(surface.preview=surface.canvas()),target=$('reviewImage');target.width=c.width;target.height=c.height;target.getContext('2d').drawImage(c,0,0);draw();}
   const node=(tag,attrs)=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,String(v));return n;};
-  function draw(){svg.replaceChildren();if(!surface||!visible)return;const c=surface.preview||(surface.preview=surface.canvas());svg.setAttribute('viewBox',`0 0 ${c.width} ${c.height}`);const entries=rows().filter(r=>r.surface===surface.key);if(gesture?.draft)entries.push(gesture.draft);
+  function draw(){svg.replaceChildren();positionInline();cards.render();if(!surface||!visible)return;const c=surface.preview||(surface.preview=surface.canvas());svg.setAttribute('viewBox',`0 0 ${c.width} ${c.height}`);const entries=rows().filter(r=>r.surface===surface.key);if(gesture?.draft)entries.push(gesture.draft);
     for(const r of entries){const x=r.x*c.width,y=r.y*c.height,x2=r.x2*c.width,y2=r.y2*c.height,g=node('g',{'data-id':r.id,opacity:r.resolved?.55:1}),attrs={stroke:r.color,'stroke-width':r.line,fill:'none','vector-effect':'non-scaling-stroke','pointer-events':'all'};let shape;
       if(r.type==='box')shape=node('rect',{...attrs,x:Math.min(x,x2),y:Math.min(y,y2),width:Math.abs(x2-x),height:Math.abs(y2-y)});
       else if(r.type==='circle')shape=node('ellipse',{...attrs,cx:(x+x2)/2,cy:(y+y2)/2,rx:Math.abs(x2-x)/2,ry:Math.abs(y2-y)/2});
@@ -84,13 +136,11 @@ export function initPrintReview({state,getSurfaces,loadImageFile,showBanner:noti
   $('reviewClose').onclick=()=>modal.close();modal.addEventListener('cancel',()=>{gesture=null;});
   $('reviewSave').onclick=()=>document.getElementById('saveProject').click();
   async function markedCanvas(s){const old=surface,oldSelected=selected,oldVisible=visible;surface=s;selected=null;visible=true;draw();const xml=new XMLSerializer().serializeToString(svg),im=new Image(),url=URL.createObjectURL(new Blob([xml],{type:'image/svg+xml'}));try{im.src=url;await im.decode();const c=s.canvas();c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c;}finally{URL.revokeObjectURL(url);surface=old;selected=oldSelected;visible=oldVisible;draw();}}
-  $('reviewPng').onclick=async()=>{try{downloadCanvasPng(await markedCanvas(surface),'수정표시.png');}catch(err){showBanner(err.message,true);}};
+  const surfaceRequests=s=>rows().map((r,i)=>({...r,number:i+1})).filter(r=>r.surface===s.key);
+  $('reviewPng').onclick=async()=>{try{const pages=composeReviewPages(await markedCanvas(surface),surfaceRequests(surface));for(const [i,c]of pages.entries())downloadCanvasPng(c,`수정표시${pages.length>1?'-'+(i+1):''}.png`);}catch(err){showBanner(err.message,true);}};
   $('reviewPdf').onclick=async()=>{try{
-    const canvases=[];for(const s of surfaces.filter(s=>rows().some(r=>r.surface===s.key)))canvases.push(await markedCanvas(s));
+    const canvases=[];for(const s of surfaces.filter(s=>rows().some(r=>r.surface===s.key)))canvases.push(...composeReviewPages(await markedCanvas(s),surfaceRequests(s)));
     if(!canvases.length){showBanner('현재 제품에 수정 표시를 먼저 추가해 주세요.',true);return;}
-    let c,ctx,y;const next=()=>{c=document.createElement('canvas');c.width=1240;c.height=1754;ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#203c2b';ctx.font='bold 30px sans-serif';ctx.fillText('인쇄물 수정 요청 목록',60,65);ctx.font='22px sans-serif';y=115;canvases.push(c);};next();
-    const line=text=>{for(const part of String(text).split('\n')){let row='';for(const ch of part){if(ctx.measureText(row+ch).width>1100){if(y>1640)next();ctx.fillText(row,60,y);y+=32;row='';}row+=ch;}if(y>1640)next();ctx.fillText(row,60,y);y+=32;}};
-    rows().forEach((r,i)=>{if(!surfaces.some(s=>s.key===r.surface))return;line(`${i+1}. ${r.label} · ${r.resolved?'완료':'미해결'} · ${r.category}`);if(r.before)line('현재: '+r.before);if(r.after)line('변경: '+r.after);line(r.text);for(const reply of r.comments)line('댓글 / '+reply.author+': '+reply.text);for(const a of r.attachments){if(y>1400)next();line('첨부: '+a.name);const w=200,h=200*(a.image.naturalHeight/a.image.naturalWidth);ctx.drawImage(a.image,60,y,w,Math.min(h,180));y+=200;}y+=20;});
     await downloadCanvasesPdf(canvases,'수정요청.pdf');
   }catch(err){showBanner('PDF 저장 실패: '+err.message,true);}};
 }
